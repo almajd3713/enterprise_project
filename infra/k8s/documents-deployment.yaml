@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: documents-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: documents-service
+  template:
+    metadata:
+      labels:
+        app: documents-service
+    spec:
+      containers:
+        - name: documents-service
+          image: ttl.sh/enterprise-reel-documents-20260406113259:2h
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8081
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: postgres
+            - name: COMMENTS_SERVICE_URL
+              value: http://comments-service:8083
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

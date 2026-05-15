@@ -1,0 +1,10 @@
+server:
+  port: 8083
+
+spring:
+  cassandra:
+    keyspace-name: dms
+    contact-points: ${CASSANDRA_HOST:localhost}
+    port: 9042
+    local-datacenter: datacenter1
+    schema-action: CREATE_IF_NOT_EXISTS

@@ -1,0 +1,271 @@
+services:
+  auth-service:
+    build:
+      context: ../../services/auth-service
+    image: dms-auth
+    ports:
+      - "8082:8082"
+    environment:
+      REDIS_HOST: redis
+      # JWT_SECRET: ${JWT_SECRET:change-this-for-production-and-use-a-strong-key-please-1234567890}
+      JWT_SECRET: omg-very-sectret_one-two-tres_reelus
+      SPRING_DATASOURCE_URL: jdbc:postgresql://auth-postgres:5432/authdb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    depends_on:
+      auth-postgres:
+        condition: service_started
+
+  documents:
+    image: dms-documents
+    ports:
+      - "8081:8081"
+    environment:
+      REDIS_HOST: redis
+      # JWT_SECRET: ${JWT_SECRET:change-this-for-production-and-use-a-strong-key-please-1234567890}
+      JWT_SECRET: omg-very-sectret_one-two-tres_reelus
+      SPRING_PROFILES_ACTIVE: postgres
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC_DOCUMENTS_UPLOADED: dms.documents.uploaded
+      KAFKA_TOPIC_DOCUMENTS_TRANSLATED: dms.documents.translated
+      KAFKA_CONSUMER_GROUP_ID: dms-documents-consumer
+      MINIO_PUBLIC_ENDPOINT: http://localhost:9000
+      MINIO_PRESIGNED_EXPIRY_MINUTES: "60"
+      AWS_S3_ENABLED: "true"
+      AWS_S3_ENDPOINT: http://minio:9000
+      COMMENTS_SERVICE_URL: http://comments:8083
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/documentsdb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    depends_on:
+      redis:
+        condition: service_started
+      minio-init:
+        condition: service_completed_successfully
+      kafka-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_started
+
+  comments:
+    image: dms-comments
+    ports:
+      - "8083:8083"
+    environment:
+      REDIS_HOST: redis
+      CASSANDRA_HOST: cassandra
+    restart: unless-stopped
+    depends_on:
+      cassandra:
+        condition: service_healthy
+      cassandra-init:
+        condition: service_completed_successfully
+
+  gateway:
+    image: dms-gateway
+    ports:
+      - "3333:8080"
+    environment:
+      REDIS_HOST: redis
+      # JWT_SECRET: ${JWT_SECRET:change-this-for-production-and-use-a-strong-key-please-1234567890}
+      JWT_SECRET: omg-very-sectret_one-two-tres_reelus
+      AUTH_SERVICE_URL: http://auth-service:8082
+      DOCUMENTS_SERVICE_URL: http://documents:8081
+      COMMENTS_SERVICE_URL: http://comments:8083
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/documentsdb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    depends_on:
+      postgres:
+        condition: service_started
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    environment:
+      REDIS_HOST: redis
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    ports:
+      - "9094:9094"
+    environment:
+      REDIS_HOST: redis
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9094
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    depends_on:
+      - zookeeper
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    ports:
+      - "8088:8080"
+    environment:
+      REDIS_HOST: redis
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    depends_on:
+      - kafka
+
+  kafka-init:
+    image: confluentinc/cp-kafka:7.6.1
+    depends_on:
+      - kafka
+    entrypoint:
+      - /bin/bash
+      - -ec
+      - >
+        until kafka-topics --bootstrap-server kafka:9092 --list >/dev/null 2>&1; do echo "waiting for kafka"; sleep 2; done &&
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic dms.documents.uploaded --partitions 3 --replication-factor 1 &&
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic dms.documents.translated --partitions 3 --replication-factor 1 &&
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic dms.test --partitions 1 --replication-factor 1
+    restart: "no"
+
+  minio:
+    image: quay.io/minio/minio:latest
+    container_name: minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      REDIS_HOST: redis
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: ensia1234
+    volumes:
+      - minio_data:/data
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - >
+        until mc alias set local http://minio:9000 admin ensia1234; do echo "waiting for minio"; sleep 2; done &&
+        mc mb --ignore-existing local/documents
+    restart: "no"
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --save 60 1 --loglevel warning
+
+  loki:
+    image: grafana/loki:3.1.0
+    command: -config.file=/etc/loki/config.yml
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./observability/loki-config.yml:/etc/loki/config.yml:ro
+      - loki_data:/loki
+
+  promtail:
+    image: grafana/promtail:3.1.0
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - ./observability/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - promtail_positions:/tmp
+    depends_on:
+      - loki
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.59
+    ports:
+      - "30686:16686"
+      - "4317:4317"
+      - "4318:4318"
+    environment:
+      REDIS_HOST: redis
+      COLLECTOR_OTLP_ENABLED: "true"
+
+  cassandra:
+    image: cassandra:4.1
+    ports:
+      - "9042:9042"
+    environment:
+      REDIS_HOST: redis
+      CASSANDRA_CLUSTER_NAME: dms-cluster
+      CASSANDRA_DC: datacenter1
+      HEAP_NEWSIZE: 128M
+      MAX_HEAP_SIZE: 512M
+    healthcheck:
+      test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
+      interval: 30s
+      retries: 10
+
+  cassandra-init:
+    image: cassandra:4.1
+    depends_on:
+      cassandra:
+        condition: service_healthy
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - >
+        cqlsh cassandra 9042 -e "CREATE KEYSPACE IF NOT EXISTS dms WITH replication = {'class':'SimpleStrategy','replication_factor':1};" &&
+        cqlsh cassandra 9042 -e "CREATE TABLE IF NOT EXISTS dms.comments (doc_id uuid, comment_id timeuuid, content text, author text, PRIMARY KEY ((doc_id), comment_id)) WITH CLUSTERING ORDER BY (comment_id DESC);"
+    restart: "no"
+
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5434:5432"
+    environment:
+      REDIS_HOST: redis
+      POSTGRES_DB: documentsdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+
+  auth-postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5435:5432"
+    environment:
+      REDIS_HOST: redis
+      POSTGRES_DB: authdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+
+  translator-service:
+    build:
+      context: ../../services/translator-service
+    environment:
+      REDIS_HOST: redis
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_INPUT_TOPIC: dms.documents.uploaded
+      KAFKA_OUTPUT_TOPIC: dms.documents.translated
+      KAFKA_GROUP_ID: translator-service
+      KAFKA_AUTO_OFFSET_RESET: earliest
+      KAFKA_ENABLE_AUTO_COMMIT: "false"
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: gemini-2.0-flash
+      TRANSLATION_TARGET_LANGUAGE: fr
+      TRANSLATION_SOURCE_LANGUAGE: en
+      TRANSLATION_RETRIES: 3
+      TRANSLATION_RETRY_BACKOFF_SECONDS: 2
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  minio_data:
+  kafka_data:
+  loki_data:
+  promtail_positions:

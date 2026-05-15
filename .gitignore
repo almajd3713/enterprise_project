@@ -1,0 +1,42 @@
+.tools/
+.venv/
+__pycache__/
+docs/
+.vscode/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Logs/runtime
+*.log
+*.pid
+*.out
+*.err
+
+# Env/secrets
+.env
+.env.*
+!.env.example
+
+# Node/Vite
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Java maven stuff
+.mvn/
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+
+# Gradle
+.gradle/
+build/
+out/

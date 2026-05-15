@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: comments-postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: comments-postgres
+  template:
+    metadata:
+      labels:
+        app: comments-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: commentsdb
+            - name: POSTGRES_USER
+              value: postgres
+            - name: POSTGRES_PASSWORD
+              value: postgres
+          volumeMounts:
+            - mountPath: /var/lib/postgresql/data
+              name: comments-postgres-storage
+      volumes:
+        - name: comments-postgres-storage
+          persistentVolumeClaim:
+            claimName: comments-postgres-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: comments-postgres
+spec:
+  type: ClusterIP
+  selector:
+    app: comments-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
