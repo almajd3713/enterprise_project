@@ -59,10 +59,10 @@ public class SearchIndexService {
                                        Long departmentId,
                                        Long categoryId,
                                        String ownerId) {
-        boolean deptIdsEmpty = !isAdmin && (callerDepartments == null || callerDepartments.isEmpty());
+        boolean deptIdsEmpty = isAdmin || callerDepartments == null || callerDepartments.isEmpty();
         List<SearchDocument> results = repository.search(
                 q,
-                isAdmin ? List.of(-1L) : callerDepartments,
+                callerDepartments == null ? List.of() : callerDepartments,
                 deptIdsEmpty,
                 departmentId,
                 categoryId
