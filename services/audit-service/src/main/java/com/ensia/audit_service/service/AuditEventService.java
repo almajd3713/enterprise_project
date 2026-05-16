@@ -32,7 +32,15 @@ public class AuditEventService {
 
         AuditEvent event = new AuditEvent();
         event.setEventId(message.getEventId() == null || message.getEventId().isBlank() ? UUID.randomUUID().toString() : message.getEventId());
-        event.setOccurredAt(message.getOccurredAt() == null ? Instant.now() : message.getOccurredAt());
+        if (message.getOccurredAt() == null || message.getOccurredAt().isBlank()) {
+            event.setOccurredAt(Instant.now());
+        } else {
+            try {
+                event.setOccurredAt(Instant.parse(message.getOccurredAt()));
+            } catch (RuntimeException ex) {
+                event.setOccurredAt(Instant.now());
+            }
+        }
         event.setActor(safe(message.getActor(), "unknown"));
         event.setAction(safe(message.getAction(), "UNKNOWN"));
         event.setResourceType(safe(message.getResourceType(), "Unknown"));

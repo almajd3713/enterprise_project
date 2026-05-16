@@ -1,7 +1,6 @@
 package com.ensia.auth_service.user;
 
 import java.util.Map;
-import com.ensia.auth_service.audit.AuditEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -19,11 +18,9 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserController {
 
     private final UserAccountService userAccountService;
-    private final AuditEventPublisher auditEventPublisher;
 
-    public UserController(UserAccountService userAccountService, AuditEventPublisher auditEventPublisher) {
+    public UserController(UserAccountService userAccountService) {
         this.userAccountService = userAccountService;
-        this.auditEventPublisher = auditEventPublisher;
     }
 
     @GetMapping
@@ -36,9 +33,7 @@ public class UserController {
     @PostMapping
     public ResponseEntity<?> createUser(@RequestBody CreateUserRequest request) {
         try {
-            UserResponse created = userAccountService.create(request);
-            auditEventPublisher.publish("admin", "CREATE_USER", "User", String.valueOf(created.id()), Map.of("email", created.email()));
-            return ResponseEntity.status(HttpStatus.CREATED).body(created);
+            return ResponseEntity.status(HttpStatus.CREATED).body(userAccountService.create(request));
         } catch (IllegalArgumentException ex) {
             return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
         }
@@ -48,9 +43,7 @@ public class UserController {
     public ResponseEntity<?> updateRole(@PathVariable Long userId,
                                         @RequestBody UpdateUserRoleRequest request) {
         try {
-            UserResponse updated = userAccountService.updateRole(userId, request);
-            auditEventPublisher.publish("admin", "UPDATE_USER_ROLE", "User", String.valueOf(userId), Map.of("role", updated.role()));
-            return ResponseEntity.ok(updated);
+            return ResponseEntity.ok(userAccountService.updateRole(userId, request));
         } catch (IllegalArgumentException ex) {
             return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
         }
@@ -64,16 +57,6 @@ public class UserController {
                 throw new IllegalArgumentException("active is required");
             }
             return ResponseEntity.ok(userAccountService.updateState(userId, request.getActive()));
-        } catch (IllegalArgumentException ex) {
-            return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
-        }
-    }
-
-    @PatchMapping("/{userId}/departments")
-    public ResponseEntity<?> updateDepartments(@PathVariable Long userId,
-                                               @RequestBody UpdateUserDepartmentsRequest request) {
-        try {
-            return ResponseEntity.ok(userAccountService.updateDepartments(userId, request));
         } catch (IllegalArgumentException ex) {
             return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
         }

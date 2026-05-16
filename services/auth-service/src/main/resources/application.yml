@@ -29,6 +29,8 @@ spring:
         spring.json.add.type.headers: false
 
 app:
+  audit:
+    topic: ${AUDIT_TOPIC:dms.audit.events}
   auth:
     jwt-secret: ${JWT_SECRET:change-this-for-production-and-use-a-strong-key-please-1234567890}
     token-ttl-seconds: ${JWT_TTL_SECONDS:3600}
@@ -44,15 +46,3 @@ app:
         password: user123
         roles:
           - USER
-  audit:
-    topic: ${AUDIT_TOPIC:dms.audit.events}
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,prometheus
-  endpoint:
-    health:
-      probes:
-        enabled: true

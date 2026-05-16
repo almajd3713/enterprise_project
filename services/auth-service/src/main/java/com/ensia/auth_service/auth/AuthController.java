@@ -1,9 +1,9 @@
 package com.ensia.auth_service.auth;
 
+import com.ensia.auth_service.audit.AuditEventPublisher;
 import com.ensia.auth_service.user.UserAccount;
 import com.ensia.auth_service.user.UserAccountService;
 import com.ensia.auth_service.user.UserRole;
-import com.ensia.auth_service.audit.AuditEventPublisher;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Set;
@@ -59,9 +59,9 @@ public class AuthController {
                     .collect(Collectors.toCollection(LinkedHashSet::new));
             String normalizedRole = account.getRole().name().toUpperCase(Locale.ROOT);
             userAccountService.markLogin(username);
+            auditEventPublisher.publish(username, "LOGIN_SUCCESS", "User", username, java.util.Map.of());
 
-            java.util.List<Long> departmentIds = account.getDepartments().stream().map(com.ensia.auth_service.user.Department::getId).toList();
-            String token = jwtService.generateToken(username, roles, departmentIds);
+            String token = jwtService.generateToken(username, roles);
             return ResponseEntity.ok(new LoginResponse(
                     token,
                     username,
@@ -70,18 +70,18 @@ public class AuthController {
                     RolePermissions.forRoles(roles.stream().toList())
             ));
         } catch (Exception ex) {
+            auditEventPublisher.publish(login, "LOGIN_FAILED", "User", login, java.util.Map.of());
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(java.util.Map.of("message", "Invalid username or password"));
-        }
-        finally {
-            auditEventPublisher.publish(login, "LOGIN_ATTEMPT", "AuthSession", login, java.util.Map.of());
         }
     }
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody com.ensia.auth_service.user.CreateUserRequest request) {
         try {
-            return ResponseEntity.status(HttpStatus.CREATED).body(userAccountService.create(request));
+            var created = userAccountService.create(request);
+            auditEventPublisher.publish(created.username(), "REGISTER_USER", "User", created.username(), java.util.Map.of());
+            return ResponseEntity.status(HttpStatus.CREATED).body(created);
         } catch (IllegalArgumentException ex) {
             return ResponseEntity.badRequest().body(java.util.Map.of("message", ex.getMessage()));
         }
@@ -94,8 +94,8 @@ public class AuthController {
         }
 
         userAccountService.markLogout(authentication.getName());
+        auditEventPublisher.publish(authentication.getName(), "LOGOUT", "User", authentication.getName(), java.util.Map.of());
         SecurityContextHolder.clearContext();
-        auditEventPublisher.publish(authentication.getName(), "LOGOUT", "AuthSession", authentication.getName(), java.util.Map.of());
         return ResponseEntity.ok(java.util.Map.of("message", "Logged out"));
     }
 
@@ -115,8 +115,6 @@ public class AuthController {
                 "lastLogoutAt", account.getLastLogoutAt(),
                 "role", account.getRole().name().toUpperCase(Locale.ROOT),
                 "roles", account.getRoles().stream().map(UserRole::name).toList(),
-                "departmentIds", account.getDepartments().stream().map(com.ensia.auth_service.user.Department::getId).toList(),
-                "departments", account.getDepartments().stream().map(com.ensia.auth_service.user.Department::getName).toList(),
                 "permissions", RolePermissions.forRoles(account.getRoles().stream().map(UserRole::name).toList())
         ));
     }

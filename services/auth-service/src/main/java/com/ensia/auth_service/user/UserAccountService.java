@@ -103,7 +103,6 @@ public class UserAccountService {
         account.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         account.setSalt(UUID.randomUUID().toString().replace("-", ""));
         account.setRoles(parseRoles(request.getRoles(), request.getRole()));
-        account.setDepartments(resolveDepartments(request.getDepartmentIds()));
         account.setActive(true);
 
         return UserResponse.from(repository.save(account));
@@ -124,35 +123,6 @@ public class UserAccountService {
             account.setLastLogoutAt(Instant.now());
         }
         return UserResponse.from(repository.save(account));
-    }
-
-    @Transactional
-    public UserResponse updateDepartments(Long userId, UpdateUserDepartmentsRequest request) {
-        UserAccount account = findById(userId);
-        account.setDepartments(resolveDepartments(request == null ? List.of() : request.getDepartmentIds()));
-        return UserResponse.from(repository.save(account));
-    }
-
-    @Transactional(readOnly = true)
-    public List<DepartmentResponse> listDepartments() {
-        return departmentRepository.findAll().stream()
-                .map(DepartmentResponse::from)
-                .toList();
-    }
-
-    @Transactional
-    public DepartmentResponse createDepartment(CreateDepartmentRequest request) {
-        String name = request == null || request.getName() == null ? "" : request.getName().trim();
-        if (name.isBlank()) {
-            throw new IllegalArgumentException("name is required");
-        }
-        if (departmentRepository.existsByNameIgnoreCase(name)) {
-            throw new IllegalArgumentException("Department already exists");
-        }
-
-        Department department = new Department();
-        department.setName(name);
-        return DepartmentResponse.from(departmentRepository.save(department));
     }
 
     @Transactional
@@ -194,6 +164,30 @@ public class UserAccountService {
             account.setLastLogoutAt(Instant.now());
             repository.save(account);
         });
+    }
+
+    @Transactional(readOnly = true)
+    public List<DepartmentResponse> listDepartments() {
+        return departmentRepository.findAll()
+                .stream()
+                .map(DepartmentResponse::from)
+                .toList();
+    }
+
+    @Transactional
+    public DepartmentResponse createDepartment(CreateDepartmentRequest request) {
+        if (request == null || request.getName() == null || request.getName().isBlank()) {
+            throw new IllegalArgumentException("department name is required");
+        }
+
+        String name = request.getName().trim();
+        if (departmentRepository.existsByNameIgnoreCase(name)) {
+            throw new IllegalArgumentException("Department already exists");
+        }
+
+        Department department = new Department();
+        department.setName(name);
+        return DepartmentResponse.from(departmentRepository.save(department));
     }
 
     private void validateCreateRequest(CreateUserRequest request) {
@@ -256,24 +250,5 @@ public class UserAccountService {
 
     private UserAccount findById(Long userId) {
         return repository.findById(userId).orElseThrow(() -> new IllegalArgumentException("User not found"));
-    }
-
-    private Set<Department> resolveDepartments(List<Long> departmentIds) {
-        if (departmentIds == null || departmentIds.isEmpty()) {
-            return new LinkedHashSet<>();
-        }
-
-        LinkedHashSet<Long> requestedIds = new LinkedHashSet<>();
-        for (Long id : departmentIds) {
-            if (id != null) {
-                requestedIds.add(id);
-            }
-        }
-
-        List<Department> departments = departmentRepository.findAllById(requestedIds);
-        if (departments.size() != requestedIds.size()) {
-            throw new IllegalArgumentException("One or more departments do not exist");
-        }
-        return new LinkedHashSet<>(departments);
     }
 }

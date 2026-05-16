@@ -1,12 +1,11 @@
 package com.ensia.audit_service.messaging;
 
-import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
 public class AuditEventMessage {
     private String eventId;
-    private Instant occurredAt;
+    private String occurredAt;
     private String actor;
     private String action;
     private String resourceType;
@@ -17,8 +16,8 @@ public class AuditEventMessage {
 
     public String getEventId() { return eventId; }
     public void setEventId(String eventId) { this.eventId = eventId; }
-    public Instant getOccurredAt() { return occurredAt; }
-    public void setOccurredAt(Instant occurredAt) { this.occurredAt = occurredAt; }
+    public String getOccurredAt() { return occurredAt; }
+    public void setOccurredAt(String occurredAt) { this.occurredAt = occurredAt; }
     public String getActor() { return actor; }
     public void setActor(String actor) { this.actor = actor; }
     public String getAction() { return action; }

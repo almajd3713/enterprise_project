@@ -19,7 +19,7 @@ public class JwtService {
 		this.authProperties = authProperties;
 	}
 
-	public String generateToken(String username, Collection<String> roles, Collection<Long> departmentIds) {
+	public String generateToken(String username, Collection<String> roles) {
 		Instant now = Instant.now();
 		Instant expiresAt = now.plusSeconds(authProperties.getTokenTtlSeconds());
 		String primaryRole = roles.stream().findFirst().orElse("USER");
@@ -28,7 +28,6 @@ public class JwtService {
 				.subject(username)
 				.claim("role", primaryRole)
 				.claim("roles", roles.stream().toList())
-				.claim("departmentIds", departmentIds == null ? java.util.List.of() : departmentIds.stream().toList())
 				.issuedAt(Date.from(now))
 				.expiration(Date.from(expiresAt))
 				.signWith(getSigningKey())

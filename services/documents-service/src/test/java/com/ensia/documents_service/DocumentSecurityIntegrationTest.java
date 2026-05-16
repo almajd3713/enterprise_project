@@ -4,8 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
 import com.ensia.documents_service.model.Document;
-import com.ensia.documents_service.model.Category;
-import com.ensia.documents_service.repository.CategoryRepository;
 import com.ensia.documents_service.repository.DocumentRepository;
 import com.ensia.documents_service.security.JwtAuthenticationFilter;
 import com.ensia.documents_service.security.JwtService;
@@ -44,17 +42,10 @@ class DocumentSecurityIntegrationTest {
 
     @Autowired
     private DocumentRepository documentRepository;
-    @Autowired
-    private CategoryRepository categoryRepository;
-    private Long categoryId;
 
     @BeforeEach
     void setup() {
         documentRepository.deleteAll();
-        categoryRepository.deleteAll();
-        Category category = new Category();
-        category.setName("General");
-        categoryId = categoryRepository.save(category).getId();
     }
 
     @Test
@@ -78,7 +69,7 @@ class DocumentSecurityIntegrationTest {
         assertThatCode(() -> mockMvc.perform(post("/documents/add")
                         .contentType(MediaType.APPLICATION_JSON)
                         .header("Authorization", "Bearer " + token)
-                        .content(String.format("{\"title\":\"Quarterly Report\",\"departmentId\":1,\"categoryId\":%d}", categoryId)))
+                        .content("{\"title\":\"Quarterly Report\"}"))
                 .andExpect(status().is2xxSuccessful()))
                 .doesNotThrowAnyException();
 
@@ -93,7 +84,6 @@ class DocumentSecurityIntegrationTest {
                 .subject(username)
                 .claim("role", role)
                 .claim("roles", java.util.List.of(role))
-                .claim("departmentIds", java.util.List.of(1))
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(3600)))
                 .signWith(key)

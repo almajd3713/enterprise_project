@@ -1,0 +1,38 @@
+server:
+  port: 8087
+
+spring:
+  application:
+    name: search-service
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5437/searchdb}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP_ID:search-service}
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+
+app:
+  auth:
+    jwt-secret: ${JWT_SECRET:change-this-for-production-and-use-a-strong-key-please-1234567890}
+  kafka:
+    topics:
+      documents-uploaded: ${KAFKA_TOPIC_DOCUMENTS_UPLOADED:dms.documents.uploaded}
+      documents-translated: ${KAFKA_TOPIC_DOCUMENTS_TRANSLATED:dms.documents.translated}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus

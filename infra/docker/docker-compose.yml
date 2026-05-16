@@ -80,6 +80,7 @@ services:
       DOCUMENTS_SERVICE_URL: http://documents:8081
       COMMENTS_SERVICE_URL: http://comments:8083
       AUDIT_SERVICE_URL: http://audit-service:8086
+      SEARCH_SERVICE_URL: http://search-service:8087
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/documentsdb
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
@@ -173,6 +174,28 @@ services:
       - "6379:6379"
     command: redis-server --save 60 1 --loglevel warning
 
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/rules:/etc/prometheus/rules:ro
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+
   loki:
     image: grafana/loki:3.1.0
     command: -config.file=/etc/loki/config.yml
@@ -181,17 +204,6 @@ services:
     volumes:
       - ./observability/loki-config.yml:/etc/loki/config.yml:ro
       - loki_data:/loki
-
-  prometheus:
-    image: prom/prometheus:v2.54.1
-    ports:
-      - "9090:9090"
-    command:
-      - --config.file=/etc/prometheus/prometheus.yml
-      - --storage.tsdb.path=/prometheus
-    volumes:
-      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
 
   promtail:
     image: grafana/promtail:3.1.0
@@ -202,24 +214,6 @@ services:
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - promtail_positions:/tmp
     depends_on:
-      - loki
-      - prometheus
-
-  grafana:
-    image: grafana/grafana:11.2.0
-    ports:
-      - "3000:3000"
-    environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
-      GF_USERS_ALLOW_SIGN_UP: "false"
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./observability/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
-      - ./observability/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
-      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
-    depends_on:
-      - prometheus
       - loki
 
   jaeger:
@@ -307,6 +301,35 @@ services:
       kafka-init:
         condition: service_completed_successfully
 
+  search-postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5437:5432"
+    environment:
+      POSTGRES_DB: searchdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+
+  search-service:
+    build:
+      context: ../../services/search-service
+    ports:
+      - "8087:8087"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://search-postgres:5432/searchdb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_CONSUMER_GROUP_ID: search-service
+      KAFKA_TOPIC_DOCUMENTS_UPLOADED: dms.documents.uploaded
+      KAFKA_TOPIC_DOCUMENTS_TRANSLATED: dms.documents.translated
+      JWT_SECRET: omg-very-sectret_one-two-tres_reelus
+    depends_on:
+      search-postgres:
+        condition: service_started
+      kafka-init:
+        condition: service_completed_successfully
+
   translator-service:
     build:
       context: ../../services/translator-service
@@ -333,6 +356,4 @@ volumes:
   minio_data:
   kafka_data:
   loki_data:
-  prometheus_data:
-  grafana_data:
   promtail_positions:

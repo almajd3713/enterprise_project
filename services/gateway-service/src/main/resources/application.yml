@@ -4,6 +4,10 @@ server:
 spring:
   application:
     name: gateway-service
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
+      - org.springframework.boot.actuate.autoconfigure.security.servlet.ManagementWebSecurityAutoConfiguration
   datasource:
     driver-class-name: org.postgresql.Driver
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5434/documentsdb}
@@ -26,20 +30,14 @@ spring:
               uri: ${AUTH_SERVICE_URL:http://auth-service:8082}
               predicates:
                 - Path=/api/auth/**
-              filters:
-                - RewritePath=/api/(?<segment>.*), /${segment}
             - id: users
               uri: ${AUTH_SERVICE_URL:http://auth-service:8082}
               predicates:
                 - Path=/api/users/**
-              filters:
-                - RewritePath=/api/(?<segment>.*), /${segment}
             - id: departments
               uri: ${AUTH_SERVICE_URL:http://auth-service:8082}
               predicates:
                 - Path=/api/departments/**
-              filters:
-                - RewritePath=/api/(?<segment>.*), /${segment}
             - id: documents
               uri: ${DOCUMENTS_SERVICE_URL:http://localhost:8081}
               predicates:
@@ -50,6 +48,12 @@ spring:
               uri: ${AUDIT_SERVICE_URL:http://audit-service:8086}
               predicates:
                 - Path=/api/audit/**
+              filters:
+                - RewritePath=/api/(?<segment>.*), /${segment}
+            - id: search
+              uri: ${SEARCH_SERVICE_URL:http://search-service:8087}
+              predicates:
+                - Path=/api/search/**
               filters:
                 - RewritePath=/api/(?<segment>.*), /${segment}
             - id: comments
@@ -85,13 +89,3 @@ app:
         password: analyst123
         roles:
           - ANALYST
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,prometheus
-  endpoint:
-    health:
-      probes:
-        enabled: true

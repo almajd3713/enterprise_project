@@ -1,0 +1,75 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 0},
+      "id": 1,
+      "title": "Gateway Throughput (5m)",
+      "type": "timeseries",
+      "targets": [{"expr": "dms:gateway:request_rate_5m", "refId": "A"}]
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 0},
+      "id": 2,
+      "title": "Gateway Latency p95 (5m)",
+      "type": "timeseries",
+      "targets": [{"expr": "dms:gateway:latency_p95_5m", "refId": "A"}]
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 0},
+      "id": 3,
+      "title": "Gateway Availability (5m)",
+      "type": "timeseries",
+      "targets": [{"expr": "dms:gateway:availability_5m", "refId": "A"}]
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8},
+      "id": 4,
+      "title": "Gateway Error Budget Burn Proxy",
+      "type": "timeseries",
+      "targets": [{"expr": "dms:gateway:error_rate_5m / 0.001", "refId": "A"}]
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "none"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 8},
+      "id": 5,
+      "title": "Kafka Consumer Lag",
+      "type": "timeseries",
+      "targets": [{"expr": "dms:kafka:consumer_lag", "refId": "A"}]
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "currencyUSD"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8},
+      "id": 6,
+      "title": "Estimated Monthly Storage Cost (USD)",
+      "type": "timeseries",
+      "targets": [{"expr": "dms:cost:monthly_storage_estimate_usd", "refId": "A"}]
+    }
+  ],
+  "refresh": "15s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["dms", "slo", "cost"],
+  "templating": {"list": []},
+  "time": {"from": "now-24h", "to": "now"},
+  "timezone": "",
+  "title": "DMS SLO & Cost Intelligence",
+  "uid": "dms-slo-cost-intel",
+  "version": 1,
+  "weekStart": ""
+}
