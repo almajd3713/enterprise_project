@@ -8,6 +8,14 @@ export default function UsersTab({
   handleChangeMyPassword,
   newPasswordCurrent, setNewPasswordCurrent,
   newPasswordNext, setNewPasswordNext,
+  handleCreateDepartment,
+  newDepartmentName, setNewDepartmentName,
+  handleCreateCategory,
+  newCategoryName, setNewCategoryName,
+  handleAssignDepartments,
+  assignUserId, setAssignUserId,
+  assignDepartmentIds, setAssignDepartmentIds,
+  departments,
   // list
   users, filteredUsers, loadingUsers,
   userQuery, setUserQuery,
@@ -73,6 +81,53 @@ export default function UsersTab({
             />
           </label>
           <button className="btn secondary" type="submit">Change My Password</button>
+        </form>
+
+        <h3 className="top-gap">Create Department</h3>
+        <form className="stack" onSubmit={handleCreateDepartment}>
+          <label className="field">
+            <span>Department Name</span>
+            <input value={newDepartmentName} onChange={(e) => setNewDepartmentName(e.target.value)} />
+          </label>
+          <button className="btn secondary" type="submit">Create Department</button>
+        </form>
+
+        <h3 className="top-gap">Create Category</h3>
+        <form className="stack" onSubmit={handleCreateCategory}>
+          <label className="field">
+            <span>Category Name</span>
+            <input value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} />
+          </label>
+          <button className="btn secondary" type="submit">Create Category</button>
+        </form>
+
+        <h3 className="top-gap">Assign User Departments</h3>
+        <form className="stack" onSubmit={handleAssignDepartments}>
+          <label className="field">
+            <span>User</span>
+            <select value={assignUserId} onChange={(e) => setAssignUserId(e.target.value)}>
+              <option value="">Select user</option>
+              {users.map((user) => (
+                <option key={user.id} value={user.id}>{user.username}</option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>Departments</span>
+            <select
+              multiple
+              value={assignDepartmentIds}
+              onChange={(e) => {
+                const values = Array.from(e.target.selectedOptions).map((opt) => opt.value)
+                setAssignDepartmentIds(values)
+              }}
+            >
+              {departments.map((department) => (
+                <option key={department.id} value={String(department.id)}>{department.name}</option>
+              ))}
+            </select>
+          </label>
+          <button className="btn secondary" type="submit">Save Assignment</button>
         </form>
       </article>
 

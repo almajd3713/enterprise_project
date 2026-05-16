@@ -10,6 +10,7 @@ public class CreateUserRequest {
     private String password;
     private String role;
     private List<String> roles = new ArrayList<>();
+    private List<Long> departmentIds = new ArrayList<>();
 
     public String getUsername() {
         return username;
@@ -49,5 +50,13 @@ public class CreateUserRequest {
 
     public void setRoles(List<String> roles) {
         this.roles = roles;
+    }
+
+    public List<Long> getDepartmentIds() {
+        return departmentIds;
+    }
+
+    public void setDepartmentIds(List<Long> departmentIds) {
+        this.departmentIds = departmentIds;
     }
 }

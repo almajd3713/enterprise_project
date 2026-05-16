@@ -21,6 +21,10 @@ spec:
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: postgres
+            - name: DOCUMENTS_SERVICE_URL
+              value: http://documents-service:8081
+            - name: JWT_SECRET
+              value: change-this-for-production-and-use-a-strong-key-please-1234567890
           resources:
             requests:
               cpu: 200m

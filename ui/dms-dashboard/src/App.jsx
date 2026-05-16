@@ -6,6 +6,10 @@ import {
   attachFileToDocument,
   changeMyPassword,
   createUser,
+  createCategory,
+  createDepartment,
+  fetchCategories,
+  fetchDepartments,
   downloadDocumentFile,
   fetchCommentsByDocument,
   fetchCurrentUser,
@@ -19,6 +23,7 @@ import {
   queryLokiLogs,
   resetUserPassword,
   updateUserRole,
+  updateUserDepartments,
   updateUserState,
   uploadDocument,
 } from './api/client'
@@ -194,6 +199,8 @@ function App() {
   const [documents, setDocuments] = useState([])
   const [comments, setComments] = useState([])
   const [users, setUsers] = useState([])
+  const [departments, setDepartments] = useState([])
+  const [categories, setCategories] = useState([])
   const [loadingDocs, setLoadingDocs] = useState(false)
   const [loadingComments, setLoadingComments] = useState(false)
   const [loadingUsers, setLoadingUsers] = useState(false)
@@ -201,7 +208,11 @@ function App() {
 
   // -- Documents Forms
   const [newDocumentTitle, setNewDocumentTitle] = useState('')
+  const [newDocumentDepartmentId, setNewDocumentDepartmentId] = useState('')
+  const [newDocumentCategoryId, setNewDocumentCategoryId] = useState('')
   const [newUploadTitle, setNewUploadTitle] = useState('')
+  const [newUploadDepartmentId, setNewUploadDepartmentId] = useState('')
+  const [newUploadCategoryId, setNewUploadCategoryId] = useState('')
   const [uploadFile, setUploadFile] = useState(null)
   const [selectedDocumentId, setSelectedDocumentId] = useState('')
   const [selectedDocumentDetails, setSelectedDocumentDetails] = useState(null)
@@ -221,6 +232,10 @@ function App() {
   const [newUserRole, setNewUserRole] = useState('Analyst')
   const [newPasswordCurrent, setNewPasswordCurrent] = useState('')
   const [newPasswordNext, setNewPasswordNext] = useState('')
+  const [newDepartmentName, setNewDepartmentName] = useState('')
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [assignUserId, setAssignUserId] = useState('')
+  const [assignDepartmentIds, setAssignDepartmentIds] = useState([])
 
   // -- Context / Analytics
   const [environment, setEnvironment] = useState('docker-local')
@@ -286,6 +301,8 @@ function App() {
     if (authSession?.token) {
       loadCurrentUser()
       loadDocuments()
+      loadDepartments()
+      loadCategories()
       if (allowedTabs.includes('users')) {
         loadUsers()
       }
@@ -416,6 +433,24 @@ function App() {
     }
   }
 
+  async function loadDepartments() {
+    try {
+      const data = await wrapRequest('fetchDepartments', () => fetchDepartments(apiBaseUrl, authSession?.token))
+      setDepartments(data)
+    } catch (err) {
+      setError(`Failed to load departments: ${err.message}`)
+    }
+  }
+
+  async function loadCategories() {
+    try {
+      const data = await wrapRequest('fetchCategories', () => fetchCategories(apiBaseUrl, authSession?.token))
+      setCategories(data)
+    } catch (err) {
+      setError(`Failed to load categories: ${err.message}`)
+    }
+  }
+
   async function handleLoadFullDocument() {
     if (!selectedDocumentId) return
     setLoadingFull(true)
@@ -436,17 +471,23 @@ function App() {
 
   async function handleCreateDocument(event) {
     event.preventDefault()
-    if (!newDocumentTitle.trim()) {
-      setFormIssues(['Document title is required.'])
+    if (!newDocumentTitle.trim() || !newDocumentDepartmentId || !newDocumentCategoryId) {
+      setFormIssues(['Document title, departmentId, and categoryId are required.'])
       return
     }
     setFormIssues([])
     try {
       const created = await wrapRequest('addDocument', () =>
-        addDocument(apiBaseUrl, authSession?.token, { title: newDocumentTitle.trim() }),
+        addDocument(apiBaseUrl, authSession?.token, {
+          title: newDocumentTitle.trim(),
+          departmentId: Number(newDocumentDepartmentId),
+          categoryId: Number(newDocumentCategoryId),
+        }),
       )
       recordAudit('CREATE', 'Document', `id=${created.id} title=${created.title}`)
       setNewDocumentTitle('')
+      setNewDocumentDepartmentId('')
+      setNewDocumentCategoryId('')
       setToast('Document created successfully.')
       await loadDocuments()
     } catch (err) {
@@ -456,17 +497,26 @@ function App() {
 
   async function handleUploadDocument(event) {
     event.preventDefault()
-    if (!newUploadTitle.trim() || !uploadFile) {
-      setFormIssues(['Title and file are both required for upload.'])
+    if (!newUploadTitle.trim() || !newUploadDepartmentId || !newUploadCategoryId || !uploadFile) {
+      setFormIssues(['Title, departmentId, categoryId, and file are all required for upload.'])
       return
     }
     setFormIssues([])
     try {
       const created = await wrapRequest('uploadDocument', () =>
-        uploadDocument(apiBaseUrl, authSession?.token, newUploadTitle.trim(), uploadFile),
+        uploadDocument(
+          apiBaseUrl,
+          authSession?.token,
+          newUploadTitle.trim(),
+          Number(newUploadDepartmentId),
+          Number(newUploadCategoryId),
+          uploadFile,
+        ),
       )
       recordAudit('CREATE', 'DocumentWithFile', `id=${created.id} fileName=${uploadFile.name}`)
       setNewUploadTitle('')
+      setNewUploadDepartmentId('')
+      setNewUploadCategoryId('')
       setUploadFile(null)
       event.target.reset()
       setToast('Document uploaded successfully.')
@@ -585,6 +635,7 @@ function App() {
           email: newUserEmail.trim().toLowerCase(),
           password: newUserPassword,
           role: newUserRole.toUpperCase(),
+          departmentIds: [],
         }),
       )
       recordAudit('CREATE', 'User', `name=${created.username} role=${created.role}`)
@@ -596,6 +647,69 @@ function App() {
       await loadUsers()
     } catch (err) {
       setError(`Failed to create user: ${err.message}`)
+    }
+  }
+
+  async function handleCreateDepartment(event) {
+    event.preventDefault()
+    if (!newDepartmentName.trim()) {
+      setFormIssues(['Department name is required.'])
+      return
+    }
+    setFormIssues([])
+    try {
+      const created = await wrapRequest('createDepartment', () =>
+        createDepartment(apiBaseUrl, authSession?.token, newDepartmentName.trim()),
+      )
+      recordAudit('CREATE', 'Department', `id=${created.id} name=${created.name}`)
+      setNewDepartmentName('')
+      setToast('Department created.')
+      await loadDepartments()
+    } catch (err) {
+      setError(`Failed to create department: ${err.message}`)
+    }
+  }
+
+  async function handleCreateCategory(event) {
+    event.preventDefault()
+    if (!newCategoryName.trim()) {
+      setFormIssues(['Category name is required.'])
+      return
+    }
+    setFormIssues([])
+    try {
+      const created = await wrapRequest('createCategory', () =>
+        createCategory(apiBaseUrl, authSession?.token, newCategoryName.trim()),
+      )
+      recordAudit('CREATE', 'Category', `id=${created.id} name=${created.name}`)
+      setNewCategoryName('')
+      setToast('Category created.')
+      await loadCategories()
+    } catch (err) {
+      setError(`Failed to create category: ${err.message}`)
+    }
+  }
+
+  async function handleAssignDepartments(event) {
+    event.preventDefault()
+    if (!assignUserId) {
+      setFormIssues(['Select a user to assign departments.'])
+      return
+    }
+    try {
+      await wrapRequest('assignDepartments', () =>
+        updateUserDepartments(
+          apiBaseUrl,
+          authSession?.token,
+          Number(assignUserId),
+          assignDepartmentIds.map((id) => Number(id)),
+        ),
+      )
+      recordAudit('UPDATE', 'UserDepartments', `userId=${assignUserId} departments=${assignDepartmentIds.join(',')}`)
+      setToast('Departments assignment updated.')
+      await loadUsers()
+    } catch (err) {
+      setError(`Failed to assign departments: ${err.message}`)
     }
   }
 
@@ -1147,8 +1261,16 @@ function App() {
             clearDocumentFilters={clearDocumentFilters}
             newDocumentTitle={newDocumentTitle}
             setNewDocumentTitle={setNewDocumentTitle}
+            newDocumentDepartmentId={newDocumentDepartmentId}
+            setNewDocumentDepartmentId={setNewDocumentDepartmentId}
+            newDocumentCategoryId={newDocumentCategoryId}
+            setNewDocumentCategoryId={setNewDocumentCategoryId}
             newUploadTitle={newUploadTitle}
             setNewUploadTitle={setNewUploadTitle}
+            newUploadDepartmentId={newUploadDepartmentId}
+            setNewUploadDepartmentId={setNewUploadDepartmentId}
+            newUploadCategoryId={newUploadCategoryId}
+            setNewUploadCategoryId={setNewUploadCategoryId}
             uploadFile={uploadFile}
             setUploadFile={setUploadFile}
             replaceFile={replaceFile}
@@ -1163,6 +1285,8 @@ function App() {
             handleDownloadSelectedDocument={handleDownloadSelectedDocument}
             handleGetPresignedUrl={handleGetPresignedUrl}
             role={role}
+            departments={departments}
+            categories={categories}
           />
         )}
 
@@ -1277,6 +1401,18 @@ function App() {
             updateUserRoleLocal={updateUserRoleLocal}
             toggleUserActive={toggleUserActive}
             handleResetUserPassword={handleResetUserPassword}
+            handleCreateDepartment={handleCreateDepartment}
+            newDepartmentName={newDepartmentName}
+            setNewDepartmentName={setNewDepartmentName}
+            handleCreateCategory={handleCreateCategory}
+            newCategoryName={newCategoryName}
+            setNewCategoryName={setNewCategoryName}
+            handleAssignDepartments={handleAssignDepartments}
+            assignUserId={assignUserId}
+            setAssignUserId={setAssignUserId}
+            assignDepartmentIds={assignDepartmentIds}
+            setAssignDepartmentIds={setAssignDepartmentIds}
+            departments={departments}
             ROLES={ROLES}
             ROLE_PERMISSIONS={ROLE_PERMISSIONS}
             normalizeRole={normalizeRole}

@@ -56,7 +56,8 @@ public class AuthController {
             String normalizedRole = account.getRole().name().toUpperCase(Locale.ROOT);
             userAccountService.markLogin(username);
 
-            String token = jwtService.generateToken(username, roles);
+            java.util.List<Long> departmentIds = account.getDepartments().stream().map(com.ensia.auth_service.user.Department::getId).toList();
+            String token = jwtService.generateToken(username, roles, departmentIds);
             return ResponseEntity.ok(new LoginResponse(
                     token,
                     username,
@@ -106,6 +107,8 @@ public class AuthController {
                 "lastLogoutAt", account.getLastLogoutAt(),
                 "role", account.getRole().name().toUpperCase(Locale.ROOT),
                 "roles", account.getRoles().stream().map(UserRole::name).toList(),
+                "departmentIds", account.getDepartments().stream().map(com.ensia.auth_service.user.Department::getId).toList(),
+                "departments", account.getDepartments().stream().map(com.ensia.auth_service.user.Department::getName).toList(),
                 "permissions", RolePermissions.forRoles(account.getRoles().stream().map(UserRole::name).toList())
         ));
     }

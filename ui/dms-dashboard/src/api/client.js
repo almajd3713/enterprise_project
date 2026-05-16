@@ -68,9 +68,11 @@ export async function fetchDocumentFull(baseUrl, token, documentId) {
   return readJson(response)
 }
 
-export async function uploadDocument(baseUrl, token, title, file) {
+export async function uploadDocument(baseUrl, token, title, departmentId, categoryId, file) {
   const formData = new FormData()
   formData.append('title', title)
+  formData.append('departmentId', String(departmentId))
+  formData.append('categoryId', String(categoryId))
   formData.append('file', file)
 
   const response = await fetch(buildUrl(baseUrl, '/documents/upload'), {
@@ -79,6 +81,47 @@ export async function uploadDocument(baseUrl, token, title, file) {
     body: formData,
   })
 
+  return readJson(response)
+}
+
+export async function fetchDepartments(baseUrl, token) {
+  const response = await fetch(buildUrl(baseUrl, '/departments'), {
+    headers: buildAuthHeaders(token),
+  })
+  return readJson(response)
+}
+
+export async function createDepartment(baseUrl, token, name) {
+  const response = await fetch(buildUrl(baseUrl, '/departments'), {
+    method: 'POST',
+    headers: buildAuthHeaders(token, { 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ name }),
+  })
+  return readJson(response)
+}
+
+export async function updateUserDepartments(baseUrl, token, userId, departmentIds) {
+  const response = await fetch(buildUrl(baseUrl, `/users/${userId}/departments`), {
+    method: 'PATCH',
+    headers: buildAuthHeaders(token, { 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ departmentIds }),
+  })
+  return readJson(response)
+}
+
+export async function fetchCategories(baseUrl, token) {
+  const response = await fetch(buildUrl(baseUrl, '/documents/categories'), {
+    headers: buildAuthHeaders(token),
+  })
+  return readJson(response)
+}
+
+export async function createCategory(baseUrl, token, name) {
+  const response = await fetch(buildUrl(baseUrl, '/documents/categories'), {
+    method: 'POST',
+    headers: buildAuthHeaders(token, { 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ name }),
+  })
   return readJson(response)
 }
 

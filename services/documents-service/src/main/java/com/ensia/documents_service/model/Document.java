@@ -29,6 +29,10 @@ public class Document implements Serializable {
     private Long fileSize;
 
     private String ownerId;
+
+    private Long departmentId;
+
+    private Long categoryId;
     
     @Column(columnDefinition = "TEXT")
     private String translatedText;

@@ -7,7 +7,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -42,7 +44,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             List<String> roles = extractRoles(claims);
             if (username != null && !roles.isEmpty() && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                        username,
+                        new AuthenticatedUser(username, new LinkedHashSet<>(roles), extractDepartmentIds(claims)),
                         null,
                         roles.stream().map(role -> new SimpleGrantedAuthority("ROLE_" + role)).toList()
                 );
@@ -70,5 +72,27 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String role = claims.get("role", String.class);
         return role == null ? List.of() : List.of(role.toUpperCase());
+    }
+
+    private Set<Long> extractDepartmentIds(Claims claims) {
+        Object departmentsClaim = claims.get("departmentIds");
+        if (departmentsClaim instanceof List<?> departmentList) {
+            Set<Long> departmentIds = new LinkedHashSet<>();
+            for (Object entry : departmentList) {
+                if (entry instanceof Number number) {
+                    departmentIds.add(number.longValue());
+                    continue;
+                }
+                if (entry != null) {
+                    try {
+                        departmentIds.add(Long.parseLong(entry.toString()));
+                    } catch (NumberFormatException ignored) {
+                        // Ignore malformed values.
+                    }
+                }
+            }
+            return departmentIds;
+        }
+        return Set.of();
     }
 }

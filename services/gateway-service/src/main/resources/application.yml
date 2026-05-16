@@ -34,6 +34,12 @@ spring:
                 - Path=/api/users/**
               filters:
                 - RewritePath=/api/(?<segment>.*), /${segment}
+            - id: departments
+              uri: ${AUTH_SERVICE_URL:http://auth-service:8082}
+              predicates:
+                - Path=/api/departments/**
+              filters:
+                - RewritePath=/api/(?<segment>.*), /${segment}
             - id: documents
               uri: ${DOCUMENTS_SERVICE_URL:http://localhost:8081}
               predicates:
@@ -73,3 +79,13 @@ app:
         password: analyst123
         roles:
           - ANALYST
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true

@@ -11,6 +11,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -43,6 +45,14 @@ public class UserAccount {
     @Column(name = "role", nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
     private Set<UserRole> roles = new LinkedHashSet<>();
+
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(
+            name = "app_user_departments",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "department_id")
+    )
+    private Set<Department> departments = new LinkedHashSet<>();
 
     @Column(nullable = false)
     private boolean active;
@@ -186,5 +196,13 @@ public class UserAccount {
 
     public void setLastLogoutAt(Instant lastLogoutAt) {
         this.lastLogoutAt = lastLogoutAt;
+    }
+
+    public Set<Department> getDepartments() {
+        return departments;
+    }
+
+    public void setDepartments(Set<Department> departments) {
+        this.departments = departments == null ? new LinkedHashSet<>() : new LinkedHashSet<>(departments);
     }
 }

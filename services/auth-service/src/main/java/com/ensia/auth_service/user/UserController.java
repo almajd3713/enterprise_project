@@ -62,6 +62,16 @@ public class UserController {
         }
     }
 
+    @PatchMapping("/{userId}/departments")
+    public ResponseEntity<?> updateDepartments(@PathVariable Long userId,
+                                               @RequestBody UpdateUserDepartmentsRequest request) {
+        try {
+            return ResponseEntity.ok(userAccountService.updateDepartments(userId, request));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
+        }
+    }
+
     @PostMapping("/{userId}/reset-password")
     public ResponseEntity<?> resetPassword(@PathVariable Long userId,
                                            @RequestBody ResetPasswordRequest request) {

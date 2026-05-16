@@ -1,0 +1,32 @@
+services:
+  auth-service:
+    ports: []
+
+  documents:
+    ports: []
+
+  comments:
+    ports: []
+
+  postgres:
+    ports: []
+
+  auth-postgres:
+    ports: []
+
+  redis:
+    ports: []
+
+  cassandra:
+    ports: []
+
+  kafka:
+    ports: []
+
+  minio:
+    ports: []
+
+  # Keep gateway and UI/observability externally reachable for demo/submission.
+  gateway:
+    ports:
+      - "3333:8080"

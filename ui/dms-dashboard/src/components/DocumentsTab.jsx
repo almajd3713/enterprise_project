@@ -19,10 +19,20 @@ export default function DocumentsTab({
   // forms
   newDocumentTitle,
   setNewDocumentTitle,
+  newDocumentDepartmentId,
+  setNewDocumentDepartmentId,
+  newDocumentCategoryId,
+  setNewDocumentCategoryId,
   newUploadTitle,
   setNewUploadTitle,
+  newUploadDepartmentId,
+  setNewUploadDepartmentId,
+  newUploadCategoryId,
+  setNewUploadCategoryId,
   setUploadFile,
   setReplaceFile,
+  departments,
+  categories,
   // presigned
   presignedUrlData,
   setPresignedUrlData,
@@ -53,6 +63,24 @@ export default function DocumentsTab({
                 placeholder="Document title"
               />
             </label>
+            <label className="field">
+              <span>Department</span>
+              <select value={newDocumentDepartmentId} onChange={(e) => setNewDocumentDepartmentId(e.target.value)}>
+                <option value="">Select department</option>
+                {departments.map((department) => (
+                  <option key={department.id} value={department.id}>{department.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>Category</span>
+              <select value={newDocumentCategoryId} onChange={(e) => setNewDocumentCategoryId(e.target.value)}>
+                <option value="">Select category</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>{category.name}</option>
+                ))}
+              </select>
+            </label>
             <button className="btn" type="submit">Add Document</button>
           </form>
         )}
@@ -66,6 +94,24 @@ export default function DocumentsTab({
                 onChange={(e) => setNewUploadTitle(e.target.value)}
                 placeholder="Upload title"
               />
+            </label>
+            <label className="field">
+              <span>Department</span>
+              <select value={newUploadDepartmentId} onChange={(e) => setNewUploadDepartmentId(e.target.value)}>
+                <option value="">Select department</option>
+                {departments.map((department) => (
+                  <option key={department.id} value={department.id}>{department.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>Category</span>
+              <select value={newUploadCategoryId} onChange={(e) => setNewUploadCategoryId(e.target.value)}>
+                <option value="">Select category</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>{category.name}</option>
+                ))}
+              </select>
             </label>
             <input type="file" onChange={(e) => setUploadFile(e.target.files?.[0] || null)} />
             <button className="btn secondary" type="submit">Upload Document</button>
