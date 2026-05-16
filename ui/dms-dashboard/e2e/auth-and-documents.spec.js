@@ -46,7 +46,6 @@ test('login and document tab visibility works', async ({ page }) => {
 
   await page.goto('/')
 
-  await page.getByLabel('Gateway API Base URL').fill(process.env.E2E_API_BASE || 'http://localhost:3333/api')
   await page.getByLabel('Username').fill(process.env.E2E_ADMIN_USER || 'admin')
   await page.getByLabel('Password').fill(process.env.E2E_ADMIN_PASS || 'admin123')
   await page.getByRole('button', { name: 'Sign In' }).click()

@@ -12,10 +12,6 @@ export default function UsersTab({
   newDepartmentName, setNewDepartmentName,
   handleCreateCategory,
   newCategoryName, setNewCategoryName,
-  handleAssignDepartments,
-  assignUserId, setAssignUserId,
-  assignDepartmentIds, setAssignDepartmentIds,
-  departments,
   // list
   users, filteredUsers, loadingUsers,
   userQuery, setUserQuery,
@@ -101,34 +97,6 @@ export default function UsersTab({
           <button className="btn secondary" type="submit">Create Category</button>
         </form>
 
-        <h3 className="top-gap">Assign User Departments</h3>
-        <form className="stack" onSubmit={handleAssignDepartments}>
-          <label className="field">
-            <span>User</span>
-            <select value={assignUserId} onChange={(e) => setAssignUserId(e.target.value)}>
-              <option value="">Select user</option>
-              {users.map((user) => (
-                <option key={user.id} value={user.id}>{user.username}</option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>Departments</span>
-            <select
-              multiple
-              value={assignDepartmentIds}
-              onChange={(e) => {
-                const values = Array.from(e.target.selectedOptions).map((opt) => opt.value)
-                setAssignDepartmentIds(values)
-              }}
-            >
-              {departments.map((department) => (
-                <option key={department.id} value={String(department.id)}>{department.name}</option>
-              ))}
-            </select>
-          </label>
-          <button className="btn secondary" type="submit">Save Assignment</button>
-        </form>
       </article>
 
       <article className="panel">

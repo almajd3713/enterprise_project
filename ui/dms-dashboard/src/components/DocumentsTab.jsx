@@ -44,6 +44,7 @@ export default function DocumentsTab({
   handleReplaceFile,
   handleDownloadSelectedDocument,
   handleGetPresignedUrl,
+  handleDeleteSelectedDocument,
   role,
 }) {
   const canWrite = String(role).toLowerCase() === 'admin' || String(role).toLowerCase() === 'operator'
@@ -119,17 +120,9 @@ export default function DocumentsTab({
         )}
 
         <div className="top-gap stack">
-          <label className="field">
-            <span>Selected document id</span>
-            <input
-              value={selectedDocumentId}
-              onChange={(e) => {
-                setSelectedDocumentId(e.target.value)
-                setPresignedUrlData(null)
-              }}
-              placeholder="Document id"
-            />
-          </label>
+          <p className="small-note">
+            Selected document: <strong>{selectedDocumentId || 'None'}</strong>
+          </p>
           <button className="btn" onClick={handleLoadFullDocument} type="button">
             {loadingFull ? 'Loading Full Document...' : 'Load Full Document'}
           </button>
@@ -156,6 +149,16 @@ export default function DocumentsTab({
               disabled={presignedUrlLoading}
             >
               {presignedUrlLoading ? 'Generating URL...' : 'Get Pre-signed Download URL'}
+            </button>
+          )}
+
+          {canWrite && selectedDocumentId && (
+            <button
+              className="btn"
+              onClick={handleDeleteSelectedDocument}
+              type="button"
+            >
+              Delete Selected Document
             </button>
           )}
 

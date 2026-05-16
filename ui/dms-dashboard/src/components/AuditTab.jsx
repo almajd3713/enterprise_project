@@ -1,27 +1,32 @@
-export default function AuditTab({ auditLog, setAuditLog, exportAuditLog }) {
+export default function AuditTab({ auditEvents, auditIntegrity, exportAuditLog, loadAuditData }) {
   return (
     <section className="panel-grid one">
       <article className="panel">
         <h2>Audit Timeline</h2>
+        <div className="kpi-list">
+          <p>Chain Valid: <strong>{auditIntegrity?.chainValid ? 'Yes' : 'No'}</strong></p>
+          <p>Total Events: <strong>{auditIntegrity?.totalEvents ?? '-'}</strong></p>
+          <p>Invalid Events: <strong>{auditIntegrity?.invalidEvents ?? '-'}</strong></p>
+        </div>
         <div className="toolbar-row top-gap">
+          <button className="btn" type="button" onClick={loadAuditData}>
+            Refresh
+          </button>
           <button className="btn secondary" type="button" onClick={exportAuditLog}>
             Export JSON
           </button>
-          <button className="btn ghost" type="button" onClick={() => setAuditLog([])}>
-            Clear Timeline
-          </button>
         </div>
         <div className="operation-log">
-          {auditLog.length === 0 ? (
+          {auditEvents.length === 0 ? (
             <p>No audit events captured yet. Perform operations to generate entries.</p>
           ) : (
-            auditLog.map((entry) => (
-              <div key={entry.id} className="operation-item">
+            auditEvents.map((entry) => (
+              <div key={entry.id || entry.eventId} className="operation-item">
                 <p>
-                  <strong>{entry.action}</strong> on <strong>{entry.resource}</strong>
+                  <strong>{entry.action}</strong> on <strong>{entry.resourceType}</strong>
                 </p>
-                <p>{entry.details}</p>
-                <small>{entry.at} | actor: {entry.actor}</small>
+                <p>resourceId={entry.resourceId || '-'}</p>
+                <small>{entry.occurredAt} | actor: {entry.actor}</small>
               </div>
             ))
           )}

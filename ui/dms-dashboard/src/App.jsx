@@ -8,6 +8,7 @@ import {
   createUser,
   createCategory,
   createDepartment,
+  deleteDocument,
   fetchCategories,
   fetchDepartments,
   downloadDocumentFile,
@@ -15,7 +16,11 @@ import {
   fetchCurrentUser,
   fetchDocumentFull,
   fetchDocuments,
+  fetchAuditEvents,
+  fetchAuditIntegrity,
   fetchJaegerServices,
+  fetchSearchDocuments,
+  fetchSearchFacets,
   fetchUsers,
   getDefaultBaseUrl,
   getDocumentPresignedUrl,
@@ -23,17 +28,17 @@ import {
   queryLokiLogs,
   resetUserPassword,
   updateUserRole,
-  updateUserDepartments,
   updateUserState,
   uploadDocument,
 } from './api/client'
-import { normalizeApiBaseUrl, validateSettingsDraft } from './utils/validators'
+import { validateSettingsDraft } from './utils/validators'
 
 // -- Components
 import LoginPage from './components/LoginPage'
 import OverviewTab from './components/OverviewTab'
 import DocumentsTab from './components/DocumentsTab'
 import CommentsTab from './components/CommentsTab'
+import SearchTab from './components/SearchTab'
 import AnalyticsTab from './components/AnalyticsTab'
 import GatewayTab from './components/GatewayTab'
 import OperationsTab from './components/OperationsTab'
@@ -50,6 +55,7 @@ const ROLE_PERMISSIONS = {
   ADMIN: [
     'overview',
     'documents',
+    'search',
     'comments',
     'analytics',
     'gateway',
@@ -60,14 +66,15 @@ const ROLE_PERMISSIONS = {
     'settings',
     'audit',
   ],
-  OPERATOR: ['overview', 'documents', 'comments', 'analytics', 'gateway', 'operations'],
-  ANALYST: ['overview', 'documents', 'comments', 'analytics'],
+  OPERATOR: ['overview', 'documents', 'search', 'comments', 'analytics', 'gateway', 'operations'],
+  ANALYST: ['overview', 'documents', 'search', 'comments', 'analytics'],
   GUEST: ['overview'],
 }
 
 const TABS = [
   { id: 'overview', label: 'Overview' },
   { id: 'documents', label: 'Documents' },
+  { id: 'search', label: 'Search' },
   { id: 'comments', label: 'Comments' },
   { id: 'analytics', label: 'Analytics' },
   { id: 'gateway', label: 'Gateway' },
@@ -179,11 +186,20 @@ function flattenLokiResult(payload) {
   return entries.sort((left, right) => left.timestamp - right.timestamp).slice(-500)
 }
 
+function normalizeComment(comment) {
+  const key = comment?.key || {}
+  return {
+    ...comment,
+    id: comment?.id || key.commentId || `${comment?.docId || key.docId || 'doc'}-${Math.random().toString(16).slice(2)}`,
+    docId: String(comment?.docId || key.docId || ''),
+  }
+}
+
 function App() {
   // -- Auth
   const [authSession, setAuthSession] = useState(null)
   const [me, setMe] = useState(null)
-  const [apiBaseUrl, setApiBaseUrl] = useState(getDefaultBaseUrl())
+  const [apiBaseUrl] = useState(getDefaultBaseUrl())
   const [loginUsername, setLoginUsername] = useState('')
   const [loginPassword, setLoginPassword] = useState('')
   const [loginError, setLoginError] = useState('')
@@ -234,8 +250,6 @@ function App() {
   const [newPasswordNext, setNewPasswordNext] = useState('')
   const [newDepartmentName, setNewDepartmentName] = useState('')
   const [newCategoryName, setNewCategoryName] = useState('')
-  const [assignUserId, setAssignUserId] = useState('')
-  const [assignDepartmentIds, setAssignDepartmentIds] = useState([])
 
   // -- Context / Analytics
   const [environment, setEnvironment] = useState('docker-local')
@@ -248,7 +262,15 @@ function App() {
   const [requestLog, setRequestLog] = useState([])
   const [operationsBusy, setOperationsBusy] = useState(false)
   const [operationHistory, setOperationHistory] = useState([])
-  const [auditLog, setAuditLog] = useState([])
+  const [auditEvents, setAuditEvents] = useState([])
+  const [auditIntegrity, setAuditIntegrity] = useState(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchOwner, setSearchOwner] = useState('')
+  const [searchDepartment, setSearchDepartment] = useState('')
+  const [searchCategory, setSearchCategory] = useState('')
+  const [searchResults, setSearchResults] = useState([])
+  const [searchFacets, setSearchFacets] = useState(null)
+  const [searchLoading, setSearchLoading] = useState(false)
 
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
   const [settingsDraft, setSettingsDraft] = useState({ ...DEFAULT_SETTINGS })
@@ -303,6 +325,9 @@ function App() {
       loadDocuments()
       loadDepartments()
       loadCategories()
+      runSearch()
+      loadSearchFacets()
+      loadAuditData()
       if (allowedTabs.includes('users')) {
         loadUsers()
       }
@@ -321,6 +346,11 @@ function App() {
     return () => clearInterval(interval)
   }, [autoRefreshEnabled, autoRefreshSeconds, authSession?.token, commentDocId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    if (!authSession?.token || !commentDocId) return
+    loadCommentsForDoc(commentDocId, true)
+  }, [commentDocId, authSession?.token]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // -- Functions
   async function wrapRequest(name, fn) {
     const start = Date.now()
@@ -335,14 +365,15 @@ function App() {
   }
 
   function recordAudit(action, resource, details) {
-    setAuditLog((prev) => [
+    setAuditEvents((prev) => [
       {
         id: crypto.randomUUID(),
+        eventId: crypto.randomUUID(),
         action,
-        resource,
-        details,
+        resourceType: resource,
+        resourceId: details,
         actor: authSession?.username || 'system',
-        at: new Date().toISOString(),
+        occurredAt: new Date().toISOString(),
       },
       ...prev,
     ])
@@ -381,6 +412,10 @@ function App() {
     setActiveTab('overview')
     setConsoleLogs([])
     setConsoleUpdatedAt('')
+    setAuditEvents([])
+    setAuditIntegrity(null)
+    setSearchResults([])
+    setSearchFacets(null)
   }
 
   async function loadCurrentUser() {
@@ -412,12 +447,53 @@ function App() {
       const data = await wrapRequest('fetchComments', () =>
         fetchCommentsByDocument(apiBaseUrl, authSession?.token, docId),
       )
-      setComments(data)
+      setComments(Array.isArray(data) ? data.map(normalizeComment) : [])
       if (!silent) setToast(`Comments loaded for document ${docId}.`)
     } catch (err) {
       setError(`Failed to load comments: ${err.message}`)
     } finally {
       setLoadingComments(false)
+    }
+  }
+
+  async function runSearch() {
+    setSearchLoading(true)
+    try {
+      const data = await wrapRequest('searchDocuments', () =>
+        fetchSearchDocuments(apiBaseUrl, authSession?.token, {
+          q: searchQuery.trim() || undefined,
+          ownerId: searchOwner.trim() || undefined,
+          departmentId: searchDepartment || undefined,
+          categoryId: searchCategory || undefined,
+        }),
+      )
+      setSearchResults(Array.isArray(data) ? data : [])
+    } catch (err) {
+      setError(`Failed to search documents: ${err.message}`)
+    } finally {
+      setSearchLoading(false)
+    }
+  }
+
+  async function loadSearchFacets() {
+    try {
+      const data = await wrapRequest('searchFacets', () => fetchSearchFacets(apiBaseUrl, authSession?.token))
+      setSearchFacets(data || null)
+    } catch (err) {
+      setError(`Failed to load search facets: ${err.message}`)
+    }
+  }
+
+  async function loadAuditData() {
+    try {
+      const [events, integrity] = await Promise.all([
+        wrapRequest('auditEvents', () => fetchAuditEvents(apiBaseUrl, authSession?.token)),
+        wrapRequest('auditIntegrity', () => fetchAuditIntegrity(apiBaseUrl, authSession?.token)),
+      ])
+      setAuditEvents(Array.isArray(events) ? events : [])
+      setAuditIntegrity(integrity || null)
+    } catch (err) {
+      setError(`Failed to load audit data: ${err.message}`)
     }
   }
 
@@ -586,6 +662,29 @@ function App() {
     }
   }
 
+  async function handleDeleteSelectedDocument() {
+    if (!selectedDocumentId) return
+    const confirmed = window.confirm(`Delete document ${selectedDocumentId}? This cannot be undone.`)
+    if (!confirmed) return
+    try {
+      await wrapRequest('deleteDocument', () =>
+        deleteDocument(apiBaseUrl, authSession?.token, selectedDocumentId),
+      )
+      recordAudit('DELETE', 'Document', `docId=${selectedDocumentId}`)
+      if (commentDocId === selectedDocumentId) {
+        setCommentDocId('')
+        setComments([])
+      }
+      setSelectedDocumentId('')
+      setSelectedDocumentDetails(null)
+      setPresignedUrlData(null)
+      setToast('Document deleted successfully.')
+      await loadDocuments()
+    } catch (err) {
+      setError(`Failed to delete document: ${err.message}`)
+    }
+  }
+
   async function handleAddComment(event) {
     event.preventDefault()
     if (!commentDocId || !commentContent.trim()) {
@@ -596,7 +695,7 @@ function App() {
     try {
       await wrapRequest('addComment', () =>
         addComment(apiBaseUrl, authSession?.token, {
-          docId: Number(commentDocId),
+          docId: String(commentDocId),
           content: commentContent.trim(),
         }),
       )
@@ -687,29 +786,6 @@ function App() {
       await loadCategories()
     } catch (err) {
       setError(`Failed to create category: ${err.message}`)
-    }
-  }
-
-  async function handleAssignDepartments(event) {
-    event.preventDefault()
-    if (!assignUserId) {
-      setFormIssues(['Select a user to assign departments.'])
-      return
-    }
-    try {
-      await wrapRequest('assignDepartments', () =>
-        updateUserDepartments(
-          apiBaseUrl,
-          authSession?.token,
-          Number(assignUserId),
-          assignDepartmentIds.map((id) => Number(id)),
-        ),
-      )
-      recordAudit('UPDATE', 'UserDepartments', `userId=${assignUserId} departments=${assignDepartmentIds.join(',')}`)
-      setToast('Departments assignment updated.')
-      await loadUsers()
-    } catch (err) {
-      setError(`Failed to assign departments: ${err.message}`)
     }
   }
 
@@ -819,7 +895,7 @@ function App() {
   }
 
   function exportAuditLog() {
-    const blob = new Blob([JSON.stringify(auditLog, null, 2)], { type: 'application/json' })
+    const blob = new Blob([JSON.stringify(auditEvents, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
     anchor.href = url
@@ -837,7 +913,12 @@ function App() {
       const dStart = Date.now()
       let docsOk = false
       try {
-        await fetch(`${apiBaseUrl}/documents`, { headers: { 'x-b3-traceid': traceId } })
+        await fetch(`${apiBaseUrl}/documents/list`, {
+          headers: {
+            ...(authSession?.token ? { Authorization: `Bearer ${authSession.token}` } : {}),
+            'x-b3-traceid': traceId,
+          },
+        })
         docsOk = true
       } catch {
         // Keep probing the remaining services so the dashboard can report a partial health picture.
@@ -846,7 +927,21 @@ function App() {
       const cStart = Date.now()
       let commentsOk = false
       try {
-        await fetch(`${apiBaseUrl}/comments/document/999999`, { headers: { 'x-b3-traceid': traceId } })
+        if (selectedDocumentId) {
+          await fetch(`${apiBaseUrl}/comments/list/${selectedDocumentId}`, {
+            headers: {
+              ...(authSession?.token ? { Authorization: `Bearer ${authSession.token}` } : {}),
+              'x-b3-traceid': traceId,
+            },
+          })
+        } else {
+          await fetch(`${apiBaseUrl}/comments/list/1`, {
+            headers: {
+              ...(authSession?.token ? { Authorization: `Bearer ${authSession.token}` } : {}),
+              'x-b3-traceid': traceId,
+            },
+          })
+        }
         commentsOk = true
       } catch {
         // Keep probing the remaining services so the dashboard can report a partial health picture.
@@ -855,7 +950,13 @@ function App() {
       const fStart = Date.now()
       let fullOk = false
       try {
-        await fetch(`${apiBaseUrl}/documents/full/1`, { headers: { 'x-b3-traceid': traceId } })
+        const fullId = selectedDocumentId || '1'
+        await fetch(`${apiBaseUrl}/documents/full/${fullId}`, {
+          headers: {
+            ...(authSession?.token ? { Authorization: `Bearer ${authSession.token}` } : {}),
+            'x-b3-traceid': traceId,
+          },
+        })
         fullOk = true
       } catch {
         // Keep probing the remaining services so the dashboard can report a partial health picture.
@@ -1095,8 +1196,6 @@ function App() {
   if (!authSession?.token) {
     return (
       <LoginPage
-        apiBaseUrl={apiBaseUrl}
-        setApiBaseUrl={setApiBaseUrl}
         loginUsername={loginUsername}
         setLoginUsername={setLoginUsername}
         loginPassword={loginPassword}
@@ -1204,20 +1303,6 @@ function App() {
           </label>
         </header>
 
-        <section className="base-url">
-          <label className="field wide">
-            <span>Gateway API Base URL</span>
-            <input
-              value={apiBaseUrl}
-              onChange={(e) => setApiBaseUrl(normalizeApiBaseUrl(e.target.value))}
-              placeholder="http://localhost:8080/api"
-            />
-          </label>
-          <button className="btn" onClick={() => loadDocuments()} type="button">
-            Refresh Data
-          </button>
-        </section>
-
         {toast && <p className="toast ok" role="status" aria-live="polite">{toast}</p>}
         {error && <p className="toast err" role="alert" aria-live="assertive">{error}</p>}
         {formIssues.length > 0 && (
@@ -1284,16 +1369,36 @@ function App() {
             handleReplaceFile={handleReplaceFile}
             handleDownloadSelectedDocument={handleDownloadSelectedDocument}
             handleGetPresignedUrl={handleGetPresignedUrl}
+            handleDeleteSelectedDocument={handleDeleteSelectedDocument}
             role={role}
             departments={departments}
             categories={categories}
           />
         )}
 
+        {activeTab === 'search' && (
+          <SearchTab
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            searchOwner={searchOwner}
+            setSearchOwner={setSearchOwner}
+            searchDepartment={searchDepartment}
+            setSearchDepartment={setSearchDepartment}
+            searchCategory={searchCategory}
+            setSearchCategory={setSearchCategory}
+            departments={departments}
+            categories={categories}
+            searchResults={searchResults}
+            searchFacets={searchFacets}
+            searchLoading={searchLoading}
+            runSearch={runSearch}
+            loadSearchFacets={loadSearchFacets}
+          />
+        )}
+
         {activeTab === 'comments' && (
           <CommentsTab
             commentDocId={commentDocId}
-            setCommentDocId={setCommentDocId}
             commentContent={commentContent}
             setCommentContent={setCommentContent}
             commentQuery={commentQuery}
@@ -1407,12 +1512,6 @@ function App() {
             handleCreateCategory={handleCreateCategory}
             newCategoryName={newCategoryName}
             setNewCategoryName={setNewCategoryName}
-            handleAssignDepartments={handleAssignDepartments}
-            assignUserId={assignUserId}
-            setAssignUserId={setAssignUserId}
-            assignDepartmentIds={assignDepartmentIds}
-            setAssignDepartmentIds={setAssignDepartmentIds}
-            departments={departments}
             ROLES={ROLES}
             ROLE_PERMISSIONS={ROLE_PERMISSIONS}
             normalizeRole={normalizeRole}
@@ -1432,9 +1531,10 @@ function App() {
 
         {activeTab === 'audit' && (
           <AuditTab
-            auditLog={auditLog}
-            setAuditLog={setAuditLog}
+            auditEvents={auditEvents}
+            auditIntegrity={auditIntegrity}
             exportAuditLog={exportAuditLog}
+            loadAuditData={loadAuditData}
           />
         )}
       </main>

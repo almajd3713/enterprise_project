@@ -1,8 +1,4 @@
-import { normalizeApiBaseUrl } from '../utils/validators'
-
 export default function LoginPage({
-  apiBaseUrl,
-  setApiBaseUrl,
   loginUsername,
   setLoginUsername,
   loginPassword,
@@ -19,14 +15,6 @@ export default function LoginPage({
             <h2>Sign In</h2>
             <p>Login with a configured user to load tabs and permissions from the gateway.</p>
             <form className="stack top-gap" onSubmit={handleLogin}>
-              <label className="field">
-                <span>Gateway API Base URL</span>
-                <input
-                  value={apiBaseUrl}
-                  onChange={(e) => setApiBaseUrl(normalizeApiBaseUrl(e.target.value))}
-                  placeholder="http://localhost:8080/api"
-                />
-              </label>
               <label className="field">
                 <span>Username</span>
                 <input

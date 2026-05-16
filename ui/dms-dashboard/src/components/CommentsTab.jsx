@@ -1,5 +1,5 @@
 export default function CommentsTab({
-  commentDocId, setCommentDocId,
+  commentDocId,
   commentContent, setCommentContent,
   commentQuery, setCommentQuery,
   commentFlagFilter, setCommentFlagFilter,
@@ -21,14 +21,7 @@ export default function CommentsTab({
         
         {canWrite && (
           <form onSubmit={handleAddComment} className="stack">
-            <label className="field">
-              <span>Document ID</span>
-              <input
-                value={commentDocId}
-                onChange={(e) => setCommentDocId(e.target.value)}
-                placeholder="Document id"
-              />
-            </label>
+            <p className="small-note">Selected document: <strong>{commentDocId || 'None selected'}</strong></p>
             <label className="field">
               <span>Comment text</span>
               <textarea
@@ -42,6 +35,7 @@ export default function CommentsTab({
             <button
               className="btn secondary"
               type="button"
+              disabled={!commentDocId}
               onClick={() => loadCommentsForDoc(commentDocId)}
             >
               {loadingComments ? 'Loading...' : 'Refresh Comments'}
@@ -51,17 +45,11 @@ export default function CommentsTab({
 
         {!canWrite && (
           <div className="stack">
-            <label className="field">
-              <span>Document ID</span>
-              <input
-                value={commentDocId}
-                onChange={(e) => setCommentDocId(e.target.value)}
-                placeholder="Document id"
-              />
-            </label>
+            <p className="small-note">Selected document: <strong>{commentDocId || 'None selected'}</strong></p>
             <button
               className="btn secondary"
               type="button"
+              disabled={!commentDocId}
               onClick={() => loadCommentsForDoc(commentDocId)}
             >
               {loadingComments ? 'Loading...' : 'Load Comments'}

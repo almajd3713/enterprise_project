@@ -100,15 +100,6 @@ export async function createDepartment(baseUrl, token, name) {
   return readJson(response)
 }
 
-export async function updateUserDepartments(baseUrl, token, userId, departmentIds) {
-  const response = await fetch(buildUrl(baseUrl, `/users/${userId}/departments`), {
-    method: 'PATCH',
-    headers: buildAuthHeaders(token, { 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ departmentIds }),
-  })
-  return readJson(response)
-}
-
 export async function fetchCategories(baseUrl, token) {
   const response = await fetch(buildUrl(baseUrl, '/documents/categories'), {
     headers: buildAuthHeaders(token),
@@ -144,6 +135,13 @@ export function getDownloadDocumentFileUrl(baseUrl, documentId) {
 
 export async function getDocumentPresignedUrl(baseUrl, token, documentId) {
   const response = await fetch(buildUrl(baseUrl, `/documents/${documentId}/presigned-url`), {
+    headers: buildAuthHeaders(token),
+  })
+  return readJson(response)
+}
+
+export async function deleteDocument(baseUrl, token, documentId) {
+  const response = await fetch(buildUrl(baseUrl, `/documents/delete/${documentId}`), {
     headers: buildAuthHeaders(token),
   })
   return readJson(response)
@@ -255,5 +253,38 @@ export async function queryLokiLogs(query, start, end, limit = 500) {
 
 export async function fetchJaegerServices() {
   const response = await fetch('/jaeger/api/services')
+  return readJson(response)
+}
+
+export async function fetchSearchDocuments(baseUrl, token, params = {}) {
+  const query = new URLSearchParams()
+  if (params.q) query.set('q', params.q)
+  if (params.departmentId) query.set('departmentId', String(params.departmentId))
+  if (params.categoryId) query.set('categoryId', String(params.categoryId))
+  if (params.ownerId) query.set('ownerId', String(params.ownerId))
+  const response = await fetch(buildUrl(baseUrl, `/search/documents${query.toString() ? `?${query}` : ''}`), {
+    headers: buildAuthHeaders(token),
+  })
+  return readJson(response)
+}
+
+export async function fetchSearchFacets(baseUrl, token) {
+  const response = await fetch(buildUrl(baseUrl, '/search/facets'), {
+    headers: buildAuthHeaders(token),
+  })
+  return readJson(response)
+}
+
+export async function fetchAuditEvents(baseUrl, token) {
+  const response = await fetch(buildUrl(baseUrl, '/audit/events'), {
+    headers: buildAuthHeaders(token),
+  })
+  return readJson(response)
+}
+
+export async function fetchAuditIntegrity(baseUrl, token) {
+  const response = await fetch(buildUrl(baseUrl, '/audit/integrity-report'), {
+    headers: buildAuthHeaders(token),
+  })
   return readJson(response)
 }
