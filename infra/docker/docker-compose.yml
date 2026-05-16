@@ -9,6 +9,8 @@ services:
       REDIS_HOST: redis
       # JWT_SECRET: ${JWT_SECRET:change-this-for-production-and-use-a-strong-key-please-1234567890}
       JWT_SECRET: omg-very-sectret_one-two-tres_reelus
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      AUDIT_TOPIC: dms.audit.events
       SPRING_DATASOURCE_URL: jdbc:postgresql://auth-postgres:5432/authdb
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
@@ -28,6 +30,7 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       KAFKA_TOPIC_DOCUMENTS_UPLOADED: dms.documents.uploaded
       KAFKA_TOPIC_DOCUMENTS_TRANSLATED: dms.documents.translated
+      AUDIT_TOPIC: dms.audit.events
       KAFKA_CONSUMER_GROUP_ID: dms-documents-consumer
       MINIO_PUBLIC_ENDPOINT: http://localhost:9000
       MINIO_PRESIGNED_EXPIRY_MINUTES: "60"
@@ -54,6 +57,8 @@ services:
     environment:
       REDIS_HOST: redis
       CASSANDRA_HOST: cassandra
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      AUDIT_TOPIC: dms.audit.events
       DOCUMENTS_SERVICE_URL: http://documents:8081
       JWT_SECRET: omg-very-sectret_one-two-tres_reelus
     restart: unless-stopped
@@ -74,6 +79,7 @@ services:
       AUTH_SERVICE_URL: http://auth-service:8082
       DOCUMENTS_SERVICE_URL: http://documents:8081
       COMMENTS_SERVICE_URL: http://comments:8083
+      AUDIT_SERVICE_URL: http://audit-service:8086
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/documentsdb
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
@@ -131,6 +137,7 @@ services:
         until kafka-topics --bootstrap-server kafka:9092 --list >/dev/null 2>&1; do echo "waiting for kafka"; sleep 2; done &&
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic dms.documents.uploaded --partitions 3 --replication-factor 1 &&
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic dms.documents.translated --partitions 3 --replication-factor 1 &&
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic dms.audit.events --partitions 3 --replication-factor 1 &&
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic dms.test --partitions 1 --replication-factor 1
     restart: "no"
 
@@ -272,6 +279,33 @@ services:
       POSTGRES_DB: authdb
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+
+  audit-postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5436:5432"
+    environment:
+      POSTGRES_DB: auditdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+
+  audit-service:
+    build:
+      context: ../../services/audit-service
+    ports:
+      - "8086:8086"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://audit-postgres:5432/auditdb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_CONSUMER_GROUP_ID: audit-service
+      AUDIT_TOPIC: dms.audit.events
+    depends_on:
+      audit-postgres:
+        condition: service_started
+      kafka-init:
+        condition: service_completed_successfully
 
   translator-service:
     build:

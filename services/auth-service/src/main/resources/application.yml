@@ -20,6 +20,13 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
 
 app:
   auth:
@@ -37,6 +44,8 @@ app:
         password: user123
         roles:
           - USER
+  audit:
+    topic: ${AUDIT_TOPIC:dms.audit.events}
 
 management:
   endpoints:

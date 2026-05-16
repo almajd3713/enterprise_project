@@ -1,6 +1,7 @@
 package com.ensia.documents_service.controller;
 
 import com.ensia.documents_service.messaging.DocumentEventPublisher;
+import com.ensia.documents_service.audit.AuditEventPublisher;
 import com.ensia.documents_service.model.Document;
 import com.ensia.documents_service.repository.CategoryRepository;
 import com.ensia.documents_service.repository.DocumentRepository;
@@ -39,6 +40,7 @@ public class DocumentController {
     private final CategoryRepository categoryRepository;
     private final S3Service s3Service;
     private final DocumentEventPublisher documentEventPublisher;
+    private final AuditEventPublisher auditEventPublisher;
     private final RestClient restClient;
     private final String commentsServiceUrl;
 
@@ -46,11 +48,13 @@ public class DocumentController {
                               CategoryRepository categoryRepository,
                               @org.springframework.beans.factory.annotation.Autowired(required = false) S3Service s3Service,
                               DocumentEventPublisher documentEventPublisher,
+                              AuditEventPublisher auditEventPublisher,
                               @Value("${comments.service.url:http://localhost:8083}") String commentsServiceUrl) {
         this.repository = repository;
         this.categoryRepository = categoryRepository;
         this.s3Service = s3Service;
         this.documentEventPublisher = documentEventPublisher;
+        this.auditEventPublisher = auditEventPublisher;
         this.commentsServiceUrl = commentsServiceUrl;
         this.restClient = RestClient.create();
     }
@@ -123,7 +127,9 @@ public class DocumentController {
         }
 
         document.setOwnerId(user.username());
-        return ResponseEntity.ok(repository.save(document));
+        Document saved = repository.save(document);
+        auditEventPublisher.publish(user.username(), "CREATE_DOCUMENT", "Document", String.valueOf(saved.getId()), saved.getDepartmentId(), Map.of("title", saved.getTitle()));
+        return ResponseEntity.ok(saved);
     }
 
     @PostMapping("/upload")
@@ -157,6 +163,7 @@ public class DocumentController {
 
         Document saved = repository.save(document);
         documentEventPublisher.publishDocumentUploaded(saved);
+        auditEventPublisher.publish(user.username(), "UPLOAD_DOCUMENT", "Document", String.valueOf(saved.getId()), saved.getDepartmentId(), Map.of("fileName", saved.getFileName()));
         return ResponseEntity.ok(saved);
     }
 
@@ -187,6 +194,7 @@ public class DocumentController {
 
         Document saved = repository.save(document);
         documentEventPublisher.publishDocumentUploaded(saved);
+        auditEventPublisher.publish(requireUser(authentication).username(), "REPLACE_FILE", "Document", String.valueOf(saved.getId()), saved.getDepartmentId(), Map.of("fileName", saved.getFileName()));
         return ResponseEntity.ok(saved);
     }
 
@@ -202,6 +210,7 @@ public class DocumentController {
         }
 
         repository.deleteById(id);
+        auditEventPublisher.publish(requireUser(authentication).username(), "DELETE_DOCUMENT", "Document", String.valueOf(id), document.getDepartmentId(), Map.of());
         return ResponseEntity.ok(Map.of("message", "Document deleted with id: " + id));
     }
 
@@ -216,6 +225,7 @@ public class DocumentController {
         }
 
         byte[] fileData = s3Service.downloadFile(document.getFileKey());
+        auditEventPublisher.publish(requireUser(authentication).username(), "DOWNLOAD_DOCUMENT_FILE", "Document", String.valueOf(id), document.getDepartmentId(), Map.of("fileName", document.getFileName()));
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + document.getFileName() + "\"")
@@ -238,6 +248,7 @@ public class DocumentController {
         }
 
         String url = s3Service.generatePresignedUrl(document.getFileKey());
+        auditEventPublisher.publish(requireUser(authentication).username(), "GENERATE_PRESIGNED_URL", "Document", String.valueOf(id), document.getDepartmentId(), Map.of("fileName", document.getFileName()));
         return ResponseEntity.ok(Map.of(
                 "documentId", String.valueOf(id),
                 "fileName", document.getFileName() != null ? document.getFileName() : "",

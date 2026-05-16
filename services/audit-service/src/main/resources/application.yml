@@ -1,0 +1,35 @@
+server:
+  port: 8086
+
+spring:
+  application:
+    name: audit-service
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5436/auditdb}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP_ID:audit-service}
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+        spring.json.value.default.type: com.ensia.audit_service.messaging.AuditEventMessage
+
+app:
+  audit:
+    topic: ${AUDIT_TOPIC:dms.audit.events}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus

@@ -4,6 +4,7 @@ import com.datastax.oss.driver.api.core.uuid.Uuids;
 import com.ensia.comments_service.model.Comment;
 import com.ensia.comments_service.model.CommentKey;
 import com.ensia.comments_service.repository.CommentRepository;
+import com.ensia.comments_service.audit.AuditEventPublisher;
 import com.ensia.comments_service.service.DocumentAccessService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -21,10 +22,12 @@ public class CommentController {
 
     private final CommentRepository repository;
     private final DocumentAccessService documentAccessService;
+    private final AuditEventPublisher auditEventPublisher;
 
-    public CommentController(CommentRepository repository, DocumentAccessService documentAccessService) {
+    public CommentController(CommentRepository repository, DocumentAccessService documentAccessService, AuditEventPublisher auditEventPublisher) {
         this.repository = repository;
         this.documentAccessService = documentAccessService;
+        this.auditEventPublisher = auditEventPublisher;
     }
 
     // ✅ GET comments/list/{docId}
@@ -34,6 +37,7 @@ public class CommentController {
         if (!documentAccessService.canAccessDocument(docId, authorizationHeader)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "Forbidden"));
         }
+        auditEventPublisher.publish(authenticationNameFromHeader(authorizationHeader), "LIST_COMMENTS", "Comment", docId, Map.of());
         return ResponseEntity.ok(repository.findByKeyDocId(parseDocId(docId)));
     }
 
@@ -62,7 +66,9 @@ public class CommentController {
         if (authentication != null && authentication.getName() != null) {
             comment.setAuthor(authentication.getName());
         }
-        return ResponseEntity.ok(repository.save(comment));
+        Comment saved = repository.save(comment);
+        auditEventPublisher.publish(authentication != null ? authentication.getName() : "unknown", "ADD_COMMENT", "Comment", rawDocId, Map.of("author", saved.getAuthor()));
+        return ResponseEntity.ok(saved);
     }
 
     private UUID parseDocId(String docId) {
@@ -72,5 +78,9 @@ public class CommentController {
             // Preserve compatibility with numeric document IDs by mapping them into stable UUIDs.
             return UUID.nameUUIDFromBytes(("doc-" + docId).getBytes(java.nio.charset.StandardCharsets.UTF_8));
         }
+    }
+
+    private String authenticationNameFromHeader(String authorizationHeader) {
+        return authorizationHeader == null ? "unknown" : "authenticated";
     }
 }

@@ -8,10 +8,16 @@ services:
   comments:
     ports: []
 
+  audit-service:
+    ports: []
+
   postgres:
     ports: []
 
   auth-postgres:
+    ports: []
+
+  audit-postgres:
     ports: []
 
   redis:

@@ -8,10 +8,19 @@ spring:
     port: 9042
     local-datacenter: datacenter1
     schema-action: CREATE_IF_NOT_EXISTS
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
 
 app:
   auth:
     jwt-secret: ${JWT_SECRET:change-this-for-production-and-use-a-strong-key-please-1234567890}
+  audit:
+    topic: ${AUDIT_TOPIC:dms.audit.events}
 
 documents:
   service:

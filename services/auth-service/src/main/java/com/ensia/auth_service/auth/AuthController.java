@@ -3,6 +3,7 @@ package com.ensia.auth_service.auth;
 import com.ensia.auth_service.user.UserAccount;
 import com.ensia.auth_service.user.UserAccountService;
 import com.ensia.auth_service.user.UserRole;
+import com.ensia.auth_service.audit.AuditEventPublisher;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Set;
@@ -26,13 +27,16 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final UserAccountService userAccountService;
+    private final AuditEventPublisher auditEventPublisher;
 
     public AuthController(AuthenticationManager authenticationManager,
                           JwtService jwtService,
-                          UserAccountService userAccountService) {
+                          UserAccountService userAccountService,
+                          AuditEventPublisher auditEventPublisher) {
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.userAccountService = userAccountService;
+        this.auditEventPublisher = auditEventPublisher;
     }
 
     @PostMapping("/login")
@@ -69,6 +73,9 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(java.util.Map.of("message", "Invalid username or password"));
         }
+        finally {
+            auditEventPublisher.publish(login, "LOGIN_ATTEMPT", "AuthSession", login, java.util.Map.of());
+        }
     }
 
     @PostMapping("/register")
@@ -88,6 +95,7 @@ public class AuthController {
 
         userAccountService.markLogout(authentication.getName());
         SecurityContextHolder.clearContext();
+        auditEventPublisher.publish(authentication.getName(), "LOGOUT", "AuthSession", authentication.getName(), java.util.Map.of());
         return ResponseEntity.ok(java.util.Map.of("message", "Logged out"));
     }
 

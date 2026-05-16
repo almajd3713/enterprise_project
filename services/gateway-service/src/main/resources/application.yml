@@ -46,6 +46,12 @@ spring:
                 - Path=/api/documents/**
               filters:
                 - RewritePath=/api/(?<segment>.*), /${segment}
+            - id: audit
+              uri: ${AUDIT_SERVICE_URL:http://audit-service:8086}
+              predicates:
+                - Path=/api/audit/**
+              filters:
+                - RewritePath=/api/(?<segment>.*), /${segment}
             - id: comments
               uri: ${COMMENTS_SERVICE_URL:http://localhost:8083}
               predicates:

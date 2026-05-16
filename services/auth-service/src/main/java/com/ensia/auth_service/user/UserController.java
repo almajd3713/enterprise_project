@@ -1,6 +1,7 @@
 package com.ensia.auth_service.user;
 
 import java.util.Map;
+import com.ensia.auth_service.audit.AuditEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -18,9 +19,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserController {
 
     private final UserAccountService userAccountService;
+    private final AuditEventPublisher auditEventPublisher;
 
-    public UserController(UserAccountService userAccountService) {
+    public UserController(UserAccountService userAccountService, AuditEventPublisher auditEventPublisher) {
         this.userAccountService = userAccountService;
+        this.auditEventPublisher = auditEventPublisher;
     }
 
     @GetMapping
@@ -33,7 +36,9 @@ public class UserController {
     @PostMapping
     public ResponseEntity<?> createUser(@RequestBody CreateUserRequest request) {
         try {
-            return ResponseEntity.status(HttpStatus.CREATED).body(userAccountService.create(request));
+            UserResponse created = userAccountService.create(request);
+            auditEventPublisher.publish("admin", "CREATE_USER", "User", String.valueOf(created.id()), Map.of("email", created.email()));
+            return ResponseEntity.status(HttpStatus.CREATED).body(created);
         } catch (IllegalArgumentException ex) {
             return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
         }
@@ -43,7 +48,9 @@ public class UserController {
     public ResponseEntity<?> updateRole(@PathVariable Long userId,
                                         @RequestBody UpdateUserRoleRequest request) {
         try {
-            return ResponseEntity.ok(userAccountService.updateRole(userId, request));
+            UserResponse updated = userAccountService.updateRole(userId, request);
+            auditEventPublisher.publish("admin", "UPDATE_USER_ROLE", "User", String.valueOf(userId), Map.of("role", updated.role()));
+            return ResponseEntity.ok(updated);
         } catch (IllegalArgumentException ex) {
             return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
         }
