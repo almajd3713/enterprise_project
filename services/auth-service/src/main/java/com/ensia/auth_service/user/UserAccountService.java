@@ -51,6 +51,7 @@ public class UserAccountService {
             account.setPasswordHash(passwordEncoder.encode(userEntry.getPassword()));
             account.setSalt(UUID.randomUUID().toString().replace("-", ""));
             account.setRoles(parseRoles(userEntry.getRoles(), null));
+            account.setDepartmentIds(defaultDepartmentsForSeedUser(username));
             account.setActive(true);
             repository.save(account);
         }
@@ -294,5 +295,15 @@ public class UserAccountService {
 
     private UserAccount findById(Long userId) {
         return repository.findById(userId).orElseThrow(() -> new IllegalArgumentException("User not found"));
+    }
+
+    private Set<Long> defaultDepartmentsForSeedUser(String username) {
+        if ("admin".equalsIgnoreCase(username)) {
+            return new LinkedHashSet<>(List.of(1L, 2L, 3L, 4L, 5L));
+        }
+        if ("user".equalsIgnoreCase(username)) {
+            return new LinkedHashSet<>(List.of(1L, 2L));
+        }
+        return new LinkedHashSet<>();
     }
 }
