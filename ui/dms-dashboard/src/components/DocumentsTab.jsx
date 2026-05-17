@@ -1,3 +1,5 @@
+import { useState } from 'react'
+
 export default function DocumentsTab({
   // data
   documents,
@@ -44,148 +46,30 @@ export default function DocumentsTab({
   handleReplaceFile,
   handleDownloadSelectedDocument,
   handleGetPresignedUrl,
+  handleTranslateSelectedDocument,
   handleDeleteSelectedDocument,
   role,
+  enforceDepartmentScope,
 }) {
   const canWrite = String(role).toLowerCase() === 'admin' || String(role).toLowerCase() === 'operator'
+  const selectedDoc = documents.find((doc) => String(doc.id) === selectedDocumentId)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
   return (
     <section className="panel-grid two">
-      {/* ── Left: operations ─────────────────────────── */}
-      <article className="panel">
-        <h2>Document Operations</h2>
-
-        {canWrite && (
-          <form onSubmit={handleCreateDocument} className="stack">
-            <label className="field">
-              <span>Create metadata</span>
-              <input
-                value={newDocumentTitle}
-                onChange={(e) => setNewDocumentTitle(e.target.value)}
-                placeholder="Document title"
-              />
-            </label>
-            <label className="field">
-              <span>Department</span>
-              <select value={newDocumentDepartmentId} onChange={(e) => setNewDocumentDepartmentId(e.target.value)}>
-                <option value="">Select department</option>
-                {departments.map((department) => (
-                  <option key={department.id} value={department.id}>{department.name}</option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              <span>Category</span>
-              <select value={newDocumentCategoryId} onChange={(e) => setNewDocumentCategoryId(e.target.value)}>
-                <option value="">Select category</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>{category.name}</option>
-                ))}
-              </select>
-            </label>
-            <button className="btn" type="submit">Add Document</button>
-          </form>
-        )}
-
-        {canWrite && (
-          <form onSubmit={handleUploadDocument} className="stack top-gap">
-            <label className="field">
-              <span>Upload new document with file</span>
-              <input
-                value={newUploadTitle}
-                onChange={(e) => setNewUploadTitle(e.target.value)}
-                placeholder="Upload title"
-              />
-            </label>
-            <label className="field">
-              <span>Department</span>
-              <select value={newUploadDepartmentId} onChange={(e) => setNewUploadDepartmentId(e.target.value)}>
-                <option value="">Select department</option>
-                {departments.map((department) => (
-                  <option key={department.id} value={department.id}>{department.name}</option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              <span>Category</span>
-              <select value={newUploadCategoryId} onChange={(e) => setNewUploadCategoryId(e.target.value)}>
-                <option value="">Select category</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>{category.name}</option>
-                ))}
-              </select>
-            </label>
-            <input type="file" onChange={(e) => setUploadFile(e.target.files?.[0] || null)} />
-            <button className="btn secondary" type="submit">Upload Document</button>
-          </form>
-        )}
-
-        <div className="top-gap stack">
-          <p className="small-note">
-            Selected document: <strong>{selectedDocumentId || 'None'}</strong>
-          </p>
-          <button className="btn" onClick={handleLoadFullDocument} type="button">
-            {loadingFull ? 'Loading Full Document...' : 'Load Full Document'}
-          </button>
-
-          {canWrite && (
-            <form onSubmit={handleReplaceFile} className="stack">
-              <span className="label">Attach/Replace file on selected doc</span>
-              <input type="file" onChange={(e) => setReplaceFile(e.target.files?.[0] || null)} />
-              <button className="btn secondary" type="submit">Attach File To Document</button>
-            </form>
-          )}
-
-          {selectedDocumentId && (
-            <button className="btn ghost" onClick={handleDownloadSelectedDocument} type="button">
-              Download file for selected document
-            </button>
-          )}
-
-          {selectedDocumentId && (
-            <button
-              className="btn ghost"
-              onClick={handleGetPresignedUrl}
-              type="button"
-              disabled={presignedUrlLoading}
-            >
-              {presignedUrlLoading ? 'Generating URL...' : 'Get Pre-signed Download URL'}
-            </button>
-          )}
-
-          {canWrite && selectedDocumentId && (
-            <button
-              className="btn"
-              onClick={handleDeleteSelectedDocument}
-              type="button"
-            >
-              Delete Selected Document
-            </button>
-          )}
-
-          {presignedUrlData?.url && (
-            <div className="presigned-card">
-              <p className="small-note">Pre-signed URL — expires in 60 min. Opens directly in browser.</p>
-              <a
-                href={presignedUrlData.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="presigned-link"
-              >
-                {presignedUrlData.fileName || 'Download file'}
-              </a>
-            </div>
-          )}
-        </div>
-      </article>
-
-      {/* ── Right: list + detail ─────────────────────── */}
+      {/* Left: list and selection */}
       <article className="panel">
         <div className="panel-head">
-          <h2>Document List</h2>
+          <h2>Document Library</h2>
           <p className="result-meta">
-            Showing {filteredDocuments.length} of {documents.length} documents
+            Showing {filteredDocuments.length} of {documents.length}
           </p>
         </div>
+        {enforceDepartmentScope && (
+          <p className="small-note">
+            Department scope is active. You only see documents from your assigned department(s).
+          </p>
+        )}
 
         <div className="toolbar-row">
           <label className="field inline compact">
@@ -240,6 +124,7 @@ export default function DocumentsTab({
                       setSelectedDocumentId(String(doc.id))
                       setCommentDocId(String(doc.id))
                       setPresignedUrlData(null)
+                      setConfirmDelete(false)
                     }}
                   >
                     <td>{doc.id}</td>
@@ -256,6 +141,81 @@ export default function DocumentsTab({
             </tbody>
           </table>
         </div>
+      </article>
+
+      {/* Right: selected document and operations */}
+      <article className="panel">
+        <h2>Selected Document Workspace</h2>
+        <p className="small-note">
+          {selectedDoc
+            ? `#${selectedDoc.id} ${selectedDoc.title || '(untitled)'}`
+            : 'Select a document from the left table to access full actions.'}
+        </p>
+        {selectedDoc && (
+          <div className="chip-row">
+            <span className="chip">Department #{selectedDoc.departmentId ?? '-'}</span>
+            <span className="chip">Category #{selectedDoc.categoryId ?? '-'}</span>
+            <span className="chip">{selectedDoc.fileName ? `File: ${selectedDoc.fileName}` : 'No file attached'}</span>
+          </div>
+        )}
+
+        <div className="toolbar-row top-gap">
+          <button className="btn" onClick={handleLoadFullDocument} type="button" disabled={!selectedDocumentId}>
+            {loadingFull ? 'Loading Full Document...' : 'Load Full Document'}
+          </button>
+          <button className="btn secondary" onClick={handleTranslateSelectedDocument} type="button" disabled={!selectedDocumentId}>
+            Translate Now
+          </button>
+          <button className="btn ghost" onClick={handleDownloadSelectedDocument} type="button" disabled={!selectedDocumentId}>
+            Download File
+          </button>
+          <button
+            className="btn ghost"
+            onClick={handleGetPresignedUrl}
+            type="button"
+            disabled={!selectedDocumentId || presignedUrlLoading}
+          >
+            {presignedUrlLoading ? 'Generating URL...' : 'Get Pre-signed URL'}
+          </button>
+          {canWrite && (
+            confirmDelete ? (
+              <>
+                <button className="btn" onClick={handleDeleteSelectedDocument} type="button" disabled={!selectedDocumentId}>
+                  Confirm Delete
+                </button>
+                <button className="btn ghost" onClick={() => setConfirmDelete(false)} type="button">
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <button
+                className="btn"
+                onClick={() => setConfirmDelete(true)}
+                type="button"
+                disabled={!selectedDocumentId}
+              >
+                Delete Document
+              </button>
+            )
+          )}
+        </div>
+
+        {canWrite && (
+          <form onSubmit={handleReplaceFile} className="stack top-gap">
+            <span className="label">Attach/Replace file on selected document</span>
+            <input type="file" onChange={(e) => setReplaceFile(e.target.files?.[0] || null)} />
+            <button className="btn secondary" type="submit">Attach File</button>
+          </form>
+        )}
+
+        {presignedUrlData?.url && (
+          <div className="panel top-gap">
+            <p className="small-note">Pre-signed URL (valid 60 min)</p>
+            <a href={presignedUrlData.url} target="_blank" rel="noopener noreferrer" className="inline-link">
+              {presignedUrlData.fileName || 'Open download link'}
+            </a>
+          </div>
+        )}
 
         <h3>Full Document Payload</h3>
         {selectedDocumentDetails?.document?.translatedText && (
@@ -265,6 +225,75 @@ export default function DocumentsTab({
           </div>
         )}
         <pre>{JSON.stringify(selectedDocumentDetails, null, 2)}</pre>
+
+        {canWrite && (
+          <>
+            <h3 className="top-gap">Create Metadata</h3>
+            <p className="small-note">New documents are automatically queued for translation after creation.</p>
+            <form onSubmit={handleCreateDocument} className="stack">
+              <label className="field">
+                <span>Title</span>
+                <input
+                  value={newDocumentTitle}
+                  onChange={(e) => setNewDocumentTitle(e.target.value)}
+                  placeholder="Document title"
+                />
+              </label>
+              <label className="field">
+                <span>Department</span>
+                <select value={newDocumentDepartmentId} onChange={(e) => setNewDocumentDepartmentId(e.target.value)}>
+                  <option value="">Select department</option>
+                  {departments.map((department) => (
+                    <option key={department.id} value={department.id}>{department.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Category</span>
+                <select value={newDocumentCategoryId} onChange={(e) => setNewDocumentCategoryId(e.target.value)}>
+                  <option value="">Select category</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>{category.name}</option>
+                  ))}
+                </select>
+              </label>
+              <button className="btn" type="submit">Create Metadata</button>
+            </form>
+
+            <h3 className="top-gap">Upload New Document With File</h3>
+            <p className="small-note">Uploaded documents are automatically queued for translation.</p>
+            <form onSubmit={handleUploadDocument} className="stack">
+              <label className="field">
+                <span>Title</span>
+                <input
+                  value={newUploadTitle}
+                  onChange={(e) => setNewUploadTitle(e.target.value)}
+                  placeholder="Upload title"
+                />
+              </label>
+              <label className="field">
+                <span>Department</span>
+                <select value={newUploadDepartmentId} onChange={(e) => setNewUploadDepartmentId(e.target.value)}>
+                  <option value="">Select department</option>
+                  {departments.map((department) => (
+                    <option key={department.id} value={department.id}>{department.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Category</span>
+                <select value={newUploadCategoryId} onChange={(e) => setNewUploadCategoryId(e.target.value)}>
+                  <option value="">Select category</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>{category.name}</option>
+                  ))}
+                </select>
+              </label>
+              <input type="file" onChange={(e) => setUploadFile(e.target.files?.[0] || null)} />
+              <button className="btn secondary" type="submit">Upload Document</button>
+            </form>
+          </>
+        )}
       </article>
     </section>
   )

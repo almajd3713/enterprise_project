@@ -44,6 +44,11 @@ public class UserAccount {
     @Enumerated(EnumType.STRING)
     private Set<UserRole> roles = new LinkedHashSet<>();
 
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "app_user_departments", joinColumns = @JoinColumn(name = "user_id"))
+    @Column(name = "department_id", nullable = false)
+    private Set<Long> departmentIds = new LinkedHashSet<>();
+
     @Column(nullable = false)
     private boolean active;
 
@@ -132,7 +137,16 @@ public class UserAccount {
     }
 
     public UserRole getRole() {
-        return roles.stream().findFirst().orElse(UserRole.USER);
+        if (roles.contains(UserRole.ADMIN)) {
+            return UserRole.ADMIN;
+        }
+        if (roles.contains(UserRole.OPERATOR)) {
+            return UserRole.OPERATOR;
+        }
+        if (roles.contains(UserRole.ANALYST)) {
+            return UserRole.ANALYST;
+        }
+        return UserRole.USER;
     }
 
     public void setRole(UserRole role) {
@@ -146,6 +160,14 @@ public class UserAccount {
             assigned.add(UserRole.USER);
         }
         this.roles = assigned;
+    }
+
+    public Set<Long> getDepartmentIds() {
+        return departmentIds;
+    }
+
+    public void setDepartmentIds(Set<Long> departmentIds) {
+        this.departmentIds = departmentIds == null ? new LinkedHashSet<>() : new LinkedHashSet<>(departmentIds);
     }
 
     public boolean isActive() {

@@ -42,3 +42,10 @@ COMMENTS_PER_DOC=4 \
 
 - Script is safe to re-run. Duplicate resources are ignored where possible.
 - Generated temp files are stored under `/tmp/dms-seed-<tag>`.
+
+## Demo-reserved entities
+
+The seeder intentionally does **not** create these reserved demo entities:
+- Departments: `Finance`, `IT`
+- Categories: `General`, `Administrative`, `Training`
+

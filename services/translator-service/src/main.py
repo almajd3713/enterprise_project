@@ -72,40 +72,192 @@ def call_gemini_translate(
     return translated
 
 
-def retry_translate(
+def call_google_translate(
     text: str,
     source_language: str,
     target_language: str,
     api_key: str,
-    model: str,
+    timeout_seconds: int,
+) -> str:
+    if not api_key:
+        raise RuntimeError("GOOGLE_TRANSLATE_API_KEY is not configured")
+
+    url = "https://translation.googleapis.com/language/translate/v2"
+    payload = {
+        "q": text,
+        "source": source_language,
+        "target": target_language,
+        "format": "text",
+    }
+
+    response = requests.post(
+        url,
+        params={"key": api_key},
+        data=payload,
+        timeout=timeout_seconds,
+    )
+    response.raise_for_status()
+
+    body = response.json()
+    translated = (
+        body.get("data", {})
+        .get("translations", [{}])[0]
+        .get("translatedText", "")
+        .strip()
+    )
+    if not translated:
+        raise RuntimeError(f"Google Translate returned empty translation: {body}")
+    return translated
+
+
+def call_mock_translate(
+    text: str,
+    source_language: str,
+    target_language: str,
+) -> str:
+    normalized = " ".join(str(text or "").split())
+    if not normalized:
+        return f"[{target_language.upper()}] (empty)"
+    return f"[{target_language.upper()} demo] {normalized}"
+
+
+def call_libretranslate(
+    text: str,
+    source_language: str,
+    target_language: str,
+    base_url: str,
+    api_key: str,
+    timeout_seconds: int,
+) -> str:
+    if not base_url:
+        raise RuntimeError("LIBRETRANSLATE_URL is not configured")
+
+    url = f"{base_url.rstrip('/')}/translate"
+    payload = {
+        "q": text,
+        "source": source_language,
+        "target": target_language,
+        "format": "text",
+    }
+    if api_key:
+        payload["api_key"] = api_key
+
+    response = requests.post(
+        url,
+        json=payload,
+        timeout=timeout_seconds,
+    )
+    response.raise_for_status()
+
+    body = response.json()
+    translated = str(body.get("translatedText", "")).strip()
+    if not translated:
+        raise RuntimeError(f"LibreTranslate returned empty translation: {body}")
+    return translated
+
+
+def translate_with_provider(
+    provider: str,
+    text: str,
+    source_language: str,
+    target_language: str,
+    timeout_seconds: int,
+    gemini_api_key: str,
+    gemini_model: str,
+    google_translate_api_key: str,
+    libretranslate_url: str,
+    libretranslate_api_key: str,
+) -> tuple[str, str]:
+    p = provider.strip().lower()
+    if p == "libretranslate":
+        translated = call_libretranslate(
+            text=text,
+            source_language=source_language,
+            target_language=target_language,
+            base_url=libretranslate_url,
+            api_key=libretranslate_api_key,
+            timeout_seconds=timeout_seconds,
+        )
+        return translated, "libretranslate"
+
+    if p == "gemini":
+        translated = call_gemini_translate(
+            text=text,
+            source_language=source_language,
+            target_language=target_language,
+            api_key=gemini_api_key,
+            model=gemini_model,
+            timeout_seconds=timeout_seconds,
+        )
+        return translated, gemini_model
+
+    if p == "google":
+        translated = call_google_translate(
+            text=text,
+            source_language=source_language,
+            target_language=target_language,
+            api_key=google_translate_api_key,
+            timeout_seconds=timeout_seconds,
+        )
+        return translated, "google-translate-v2"
+
+    if p == "mock":
+        translated = call_mock_translate(
+            text=text,
+            source_language=source_language,
+            target_language=target_language,
+        )
+        return translated, "mock-demo"
+
+    raise RuntimeError(f"Unsupported translation provider: {provider}")
+
+
+def retry_translate(
+    providers: list[str],
+    text: str,
+    source_language: str,
+    target_language: str,
     timeout_seconds: int,
     retries: int,
     retry_backoff_seconds: int,
-) -> str:
+) -> tuple[str, str, str]:
+    gemini_api_key = os.getenv("GEMINI_API_KEY", "")
+    gemini_model = get_env("GEMINI_MODEL", "gemini-2.0-flash")
+    google_translate_api_key = os.getenv("GOOGLE_TRANSLATE_API_KEY", "")
+    libretranslate_url = get_env("LIBRETRANSLATE_URL", "http://libretranslate:5000")
+    libretranslate_api_key = os.getenv("LIBRETRANSLATE_API_KEY", "")
+
     last_error = None
 
-    for attempt in range(1, retries + 1):
-        try:
-            return call_gemini_translate(
-                text=text,
-                source_language=source_language,
-                target_language=target_language,
-                api_key=api_key,
-                model=model,
-                timeout_seconds=timeout_seconds,
-            )
-        except Exception as exc:
-            last_error = exc
-            logging.warning(
-                "Gemini call failed (attempt %s/%s): %s",
-                attempt,
-                retries,
-                exc,
-            )
-            if attempt < retries:
-                time.sleep(retry_backoff_seconds)
+    for provider in providers:
+        for attempt in range(1, retries + 1):
+            try:
+                translated, model = translate_with_provider(
+                    provider=provider,
+                    text=text,
+                    source_language=source_language,
+                    target_language=target_language,
+                    timeout_seconds=timeout_seconds,
+                    gemini_api_key=gemini_api_key,
+                    gemini_model=gemini_model,
+                    google_translate_api_key=google_translate_api_key,
+                    libretranslate_url=libretranslate_url,
+                    libretranslate_api_key=libretranslate_api_key,
+                )
+                return translated, provider, model
+            except Exception as exc:
+                last_error = exc
+                logging.warning(
+                    "Provider=%s failed (attempt %s/%s): %s",
+                    provider,
+                    attempt,
+                    retries,
+                    exc,
+                )
+                if attempt < retries:
+                    time.sleep(retry_backoff_seconds)
 
-    raise RuntimeError(f"Gemini call failed after {retries} attempts") from last_error
+    raise RuntimeError(f"All providers failed after {retries} attempts each") from last_error
 
 
 def main() -> None:
@@ -121,8 +273,10 @@ def main() -> None:
     auto_offset_reset = get_env("KAFKA_AUTO_OFFSET_RESET", "earliest")
     enable_auto_commit = get_bool_env("KAFKA_ENABLE_AUTO_COMMIT", False)
 
-    gemini_api_key = os.getenv("GEMINI_API_KEY", "")
-    gemini_model = get_env("GEMINI_MODEL", "gemini-2.0-flash")
+    providers_raw = get_env("TRANSLATION_PROVIDERS", "libretranslate,google,gemini,mock")
+    providers = [p.strip().lower() for p in providers_raw.split(",") if p.strip()]
+    if not providers:
+        providers = ["mock"]
 
     source_language = get_env("TRANSLATION_SOURCE_LANGUAGE", "en")
     target_language = get_env("TRANSLATION_TARGET_LANGUAGE", "fr")
@@ -138,6 +292,7 @@ def main() -> None:
         enable_auto_commit,
         auto_offset_reset,
     )
+    logging.info("Configured translation providers: %s", ",".join(providers))
 
     consumer = KafkaConsumer(
         input_topic,
@@ -165,12 +320,11 @@ def main() -> None:
         event_target_language = payload.get("targetLanguage") or target_language
 
         try:
-            translated_text = retry_translate(
+            translated_text, used_provider, used_model = retry_translate(
+                providers=providers,
                 text=text_to_translate,
                 source_language=event_source_language,
                 target_language=event_target_language,
-                api_key=gemini_api_key,
-                model=gemini_model,
                 timeout_seconds=timeout_seconds,
                 retries=retries,
                 retry_backoff_seconds=retry_backoff_seconds,
@@ -185,7 +339,8 @@ def main() -> None:
                 "sourceLanguage": event_source_language,
                 "targetLanguage": event_target_language,
                 "translatedText": translated_text,
-                "model": gemini_model,
+                "provider": used_provider,
+                "model": used_model,
             }
 
             producer.send(output_topic, key=message_key, value=translated_event).get(timeout=10)

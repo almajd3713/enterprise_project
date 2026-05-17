@@ -71,6 +71,50 @@ public class CommentController {
         return ResponseEntity.ok(saved);
     }
 
+    @PatchMapping("/{docId}/{commentId}")
+    public ResponseEntity<?> updateComment(@PathVariable String docId,
+                                           @PathVariable String commentId,
+                                           @RequestBody Map<String, String> payload,
+                                           @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
+                                           Authentication authentication) {
+        if (!documentAccessService.canAccessDocument(docId, authorizationHeader)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "Forbidden"));
+        }
+        String content = payload == null ? "" : String.valueOf(payload.getOrDefault("content", "")).trim();
+        if (content.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "content is required"));
+        }
+
+        CommentKey key = new CommentKey(parseDocId(docId), parseUuid(commentId, "commentId"));
+        var existingOpt = repository.findById(key);
+        if (existingOpt.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Comment not found"));
+        }
+
+        Comment existing = existingOpt.get();
+        existing.setContent(content);
+        Comment saved = repository.save(existing);
+        auditEventPublisher.publish(authentication != null ? authentication.getName() : "unknown", "UPDATE_COMMENT", "Comment", docId, Map.of("commentId", commentId));
+        return ResponseEntity.ok(saved);
+    }
+
+    @DeleteMapping("/{docId}/{commentId}")
+    public ResponseEntity<?> deleteComment(@PathVariable String docId,
+                                           @PathVariable String commentId,
+                                           @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
+                                           Authentication authentication) {
+        if (!documentAccessService.canAccessDocument(docId, authorizationHeader)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "Forbidden"));
+        }
+        CommentKey key = new CommentKey(parseDocId(docId), parseUuid(commentId, "commentId"));
+        if (!repository.existsById(key)) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Comment not found"));
+        }
+        repository.deleteById(key);
+        auditEventPublisher.publish(authentication != null ? authentication.getName() : "unknown", "DELETE_COMMENT", "Comment", docId, Map.of("commentId", commentId));
+        return ResponseEntity.ok(Map.of("message", "Comment deleted"));
+    }
+
     private UUID parseDocId(String docId) {
         try {
             return UUID.fromString(docId);
@@ -82,5 +126,13 @@ public class CommentController {
 
     private String authenticationNameFromHeader(String authorizationHeader) {
         return authorizationHeader == null ? "unknown" : "authenticated";
+    }
+
+    private UUID parseUuid(String value, String fieldName) {
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException(fieldName + " must be a valid UUID");
+        }
     }
 }

@@ -61,7 +61,7 @@ public class AuthController {
             userAccountService.markLogin(username);
             auditEventPublisher.publish(username, "LOGIN_SUCCESS", "User", username, java.util.Map.of());
 
-            String token = jwtService.generateToken(username, roles);
+            String token = jwtService.generateToken(username, roles, account.getDepartmentIds());
             return ResponseEntity.ok(new LoginResponse(
                     token,
                     username,
@@ -115,6 +115,7 @@ public class AuthController {
                 "lastLogoutAt", account.getLastLogoutAt(),
                 "role", account.getRole().name().toUpperCase(Locale.ROOT),
                 "roles", account.getRoles().stream().map(UserRole::name).toList(),
+                "departmentIds", account.getDepartmentIds().stream().toList(),
                 "permissions", RolePermissions.forRoles(account.getRoles().stream().map(UserRole::name).toList())
         ));
     }

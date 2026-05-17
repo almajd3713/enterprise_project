@@ -15,11 +15,14 @@ export default function SearchTab({
   runSearch,
   loadSearchFacets,
 }) {
+  const totalIndexed = searchFacets?.total ?? 0
+  const hasFilters = Boolean(searchQuery || searchOwner || searchDepartment || searchCategory)
+
   return (
-    <section className="panel-grid one">
+    <section className="panel-grid two">
       <article className="panel">
         <div className="panel-head">
-          <h2>Search</h2>
+          <h2>Search Workspace</h2>
           <div className="toolbar-row">
             <button className="btn secondary" type="button" onClick={runSearch} disabled={searchLoading}>
               {searchLoading ? 'Searching...' : 'Run Search'}
@@ -58,10 +61,9 @@ export default function SearchTab({
             </select>
           </label>
         </div>
-
-        <div className="kpi-list top-gap">
-          <p>Total Indexed: <strong>{searchFacets?.total ?? '-'}</strong></p>
-        </div>
+        <p className="small-note">
+          {hasFilters ? 'Structured filters are active.' : 'Tip: use query + department/category filters for tighter results.'}
+        </p>
 
         <div className="table-wrap top-gap">
           <table>
@@ -93,6 +95,16 @@ export default function SearchTab({
             </tbody>
           </table>
         </div>
+      </article>
+
+      <article className="panel">
+        <h2>Index Facets</h2>
+        <div className="kpi-list">
+          <p>Total Indexed: <strong>{totalIndexed}</strong></p>
+          <p>Result Count: <strong>{searchResults.length}</strong></p>
+        </div>
+        <p className="small-note top-gap">Raw facets payload</p>
+        <pre>{JSON.stringify(searchFacets, null, 2)}</pre>
       </article>
     </section>
   )

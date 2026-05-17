@@ -2,7 +2,7 @@ export default function GatewayTab({ analytics, health, runDiagnostics }) {
   return (
     <section className="panel-grid two">
       <article className="panel">
-        <h2>Gateway Live Stats</h2>
+        <h2>Gateway Control</h2>
         <div className="kpi-list">
           <p>Recent Requests: <strong>{analytics.totalReq}</strong></p>
           <p>Failed Requests: <strong>{analytics.failed}</strong></p>
@@ -31,6 +31,12 @@ export default function GatewayTab({ analytics, health, runDiagnostics }) {
             <span>Full Flow Route</span>
             <strong className={`status ${health.fullflow?.status || 'unknown'}`}>
               {health.fullflow?.status || 'unknown'}
+            </strong>
+          </li>
+          <li>
+            <span>Gateway Route</span>
+            <strong className={`status ${health.gateway?.status || 'unknown'}`}>
+              {health.gateway?.status || 'unknown'}
             </strong>
           </li>
         </ul>

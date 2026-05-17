@@ -2,6 +2,7 @@ package com.ensia.auth_service.user;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 
 public record UserResponse(
         Long id,
@@ -9,6 +10,7 @@ public record UserResponse(
         String email,
         String role,
         List<String> roles,
+        Set<Long> departmentIds,
         boolean active,
         Instant createdAt,
         Instant updatedAt,
@@ -22,6 +24,7 @@ public record UserResponse(
                 account.getEmail(),
                 account.getRole().name(),
                 account.getRoles().stream().map(UserRole::name).toList(),
+                account.getDepartmentIds(),
                 account.isActive(),
                 account.getCreatedAt(),
                 account.getUpdatedAt(),

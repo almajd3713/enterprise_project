@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -126,6 +127,26 @@ public class UserAccountService {
     }
 
     @Transactional
+    public UserResponse updateDepartments(Long userId, List<Long> departmentIds) {
+        UserAccount account = findById(userId);
+        LinkedHashSet<Long> requested = (departmentIds == null ? List.<Long>of() : departmentIds).stream()
+                .filter(Objects::nonNull)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+
+        if (!requested.isEmpty()) {
+            Set<Long> existing = departmentRepository.findAllById(requested).stream()
+                    .map(Department::getId)
+                    .collect(java.util.stream.Collectors.toSet());
+            if (existing.size() != requested.size()) {
+                throw new IllegalArgumentException("One or more departments were not found");
+            }
+        }
+
+        account.setDepartmentIds(requested);
+        return UserResponse.from(repository.save(account));
+    }
+
+    @Transactional
     public void resetPassword(Long userId, String newPassword) {
         if (newPassword == null || newPassword.length() < 8) {
             throw new IllegalArgumentException("newPassword must be at least 8 characters");
@@ -188,6 +209,29 @@ public class UserAccountService {
         Department department = new Department();
         department.setName(name);
         return DepartmentResponse.from(departmentRepository.save(department));
+    }
+
+    @Transactional
+    public DepartmentResponse updateDepartment(Long departmentId, CreateDepartmentRequest request) {
+        if (request == null || request.getName() == null || request.getName().isBlank()) {
+            throw new IllegalArgumentException("department name is required");
+        }
+        Department department = departmentRepository.findById(departmentId)
+                .orElseThrow(() -> new IllegalArgumentException("Department not found"));
+        String name = request.getName().trim();
+        if (departmentRepository.existsByNameIgnoreCase(name)
+                && !name.equalsIgnoreCase(department.getName())) {
+            throw new IllegalArgumentException("Department already exists");
+        }
+        department.setName(name);
+        return DepartmentResponse.from(departmentRepository.save(department));
+    }
+
+    @Transactional
+    public void deleteDepartment(Long departmentId) {
+        Department department = departmentRepository.findById(departmentId)
+                .orElseThrow(() -> new IllegalArgumentException("Department not found"));
+        departmentRepository.delete(department);
     }
 
     private void validateCreateRequest(CreateUserRequest request) {

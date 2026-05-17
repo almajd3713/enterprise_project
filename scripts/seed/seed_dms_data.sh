@@ -152,7 +152,7 @@ seed() {
   admin_token="$(token_for "$ADMIN_USERNAME" "$ADMIN_PASSWORD")"
 
   log "Creating departments"
-  for name in "Operations" "Finance" "HR" "Legal" "Sales" "Engineering" "Support" "Compliance"; do
+  for name in "Operations" "HR" "Legal" "Sales" "Engineering" "Support" "Compliance"; do
     create_department "$admin_token" "$name"
   done
 

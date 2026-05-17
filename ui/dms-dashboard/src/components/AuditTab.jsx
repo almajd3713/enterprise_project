@@ -1,8 +1,8 @@
 export default function AuditTab({ auditEvents, auditIntegrity, exportAuditLog, loadAuditData }) {
   return (
-    <section className="panel-grid one">
+    <section className="panel-grid two">
       <article className="panel">
-        <h2>Audit Timeline</h2>
+        <h2>Integrity Summary</h2>
         <div className="kpi-list">
           <p>Chain Valid: <strong>{auditIntegrity?.chainValid ? 'Yes' : 'No'}</strong></p>
           <p>Total Events: <strong>{auditIntegrity?.totalEvents ?? '-'}</strong></p>
@@ -16,6 +16,12 @@ export default function AuditTab({ auditEvents, auditIntegrity, exportAuditLog, 
             Export JSON
           </button>
         </div>
+        <p className="small-note top-gap">Integrity payload</p>
+        <pre>{JSON.stringify(auditIntegrity, null, 2)}</pre>
+      </article>
+
+      <article className="panel">
+        <h2>Audit Timeline</h2>
         <div className="operation-log">
           {auditEvents.length === 0 ? (
             <p>No audit events captured yet. Perform operations to generate entries.</p>

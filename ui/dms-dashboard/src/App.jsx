@@ -8,6 +8,9 @@ import {
   createUser,
   createCategory,
   createDepartment,
+  deleteCategory,
+  deleteComment,
+  deleteDepartment,
   deleteDocument,
   fetchCategories,
   fetchDepartments,
@@ -26,9 +29,14 @@ import {
   getDocumentPresignedUrl,
   loginUser,
   queryLokiLogs,
+  requestDocumentTranslation,
   resetUserPassword,
   updateUserRole,
   updateUserState,
+  updateCategory,
+  updateUserDepartments,
+  updateComment,
+  updateDepartment,
   uploadDocument,
 } from './api/client'
 import { validateSettingsDraft } from './utils/validators'
@@ -72,18 +80,18 @@ const ROLE_PERMISSIONS = {
 }
 
 const TABS = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'documents', label: 'Documents' },
-  { id: 'search', label: 'Search' },
-  { id: 'comments', label: 'Comments' },
-  { id: 'analytics', label: 'Analytics' },
-  { id: 'gateway', label: 'Gateway' },
-  { id: 'operations', label: 'Operations' },
-  { id: 'logs', label: 'Logs' },
-  { id: 'console', label: 'Console' },
-  { id: 'users', label: 'Users' },
-  { id: 'settings', label: 'Settings' },
-  { id: 'audit', label: 'Audit Log' },
+  { id: 'overview', label: 'Dashboard', section: 'Core' },
+  { id: 'documents', label: 'Documents', section: 'Core' },
+  { id: 'comments', label: 'Comments', section: 'Core' },
+  { id: 'search', label: 'Search', section: 'Core' },
+  { id: 'users', label: 'Admin', section: 'Admin' },
+  { id: 'settings', label: 'Settings', section: 'Admin' },
+  { id: 'audit', label: 'Audit', section: 'Admin' },
+  { id: 'analytics', label: 'Analytics', section: 'Observability' },
+  { id: 'gateway', label: 'Gateway', section: 'Observability' },
+  { id: 'operations', label: 'Operations', section: 'Observability' },
+  { id: 'logs', label: 'Logs', section: 'Observability' },
+  { id: 'console', label: 'Console', section: 'Observability' },
 ]
 
 const DEFAULT_SETTINGS = {
@@ -250,6 +258,13 @@ function App() {
   const [newPasswordNext, setNewPasswordNext] = useState('')
   const [newDepartmentName, setNewDepartmentName] = useState('')
   const [newCategoryName, setNewCategoryName] = useState('')
+  const [editingUserId, setEditingUserId] = useState(null)
+  const [editingUserRole, setEditingUserRole] = useState('Analyst')
+  const [editingUserActive, setEditingUserActive] = useState(true)
+  const [editingUserPassword, setEditingUserPassword] = useState('')
+  const [editingUserDepartments, setEditingUserDepartments] = useState([])
+  const [pendingDeleteUserId, setPendingDeleteUserId] = useState(null)
+  const [userActionBusy, setUserActionBusy] = useState(false)
 
   // -- Context / Analytics
   const [environment, setEnvironment] = useState('docker-local')
@@ -307,6 +322,13 @@ function App() {
   const role = normalizeRole(authSession?.role)
   const allowedTabs = ROLE_PERMISSIONS[role.toUpperCase()] || ROLE_PERMISSIONS.GUEST
   const visibleTabs = TABS.filter((t) => allowedTabs.includes(t.id))
+  const navSections = ['Core', 'Admin', 'Observability']
+  const isAdmin = role.toUpperCase() === 'ADMIN'
+  const departmentScopeIds = useMemo(
+    () => (Array.isArray(me?.departmentIds) ? me.departmentIds.map(Number).filter((id) => Number.isFinite(id)) : []),
+    [me?.departmentIds],
+  )
+  const enforceDepartmentScope = !isAdmin && departmentScopeIds.length > 0
 
   // -- Effects
   useEffect(() => {
@@ -328,6 +350,7 @@ function App() {
       runSearch()
       loadSearchFacets()
       loadAuditData()
+      runDiagnostics()
       if (allowedTabs.includes('users')) {
         loadUsers()
       }
@@ -350,6 +373,20 @@ function App() {
     if (!authSession?.token || !commentDocId) return
     loadCommentsForDoc(commentDocId, true)
   }, [commentDocId, authSession?.token]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!selectedDocumentId) return
+    const selectedStillVisible = documents.some((doc) => {
+      if (String(doc.id) !== String(selectedDocumentId)) return false
+      if (!enforceDepartmentScope) return true
+      return departmentScopeIds.includes(Number(doc.departmentId))
+    })
+    if (!selectedStillVisible) {
+      setSelectedDocumentId('')
+      setCommentDocId('')
+      setComments([])
+    }
+  }, [selectedDocumentId, documents, enforceDepartmentScope, departmentScopeIds])
 
   // -- Functions
   async function wrapRequest(name, fn) {
@@ -551,6 +588,10 @@ function App() {
       setFormIssues(['Document title, departmentId, and categoryId are required.'])
       return
     }
+    if (enforceDepartmentScope && !departmentScopeIds.includes(Number(newDocumentDepartmentId))) {
+      setFormIssues(['You can only create documents inside your assigned department(s).'])
+      return
+    }
     setFormIssues([])
     try {
       const created = await wrapRequest('addDocument', () =>
@@ -575,6 +616,10 @@ function App() {
     event.preventDefault()
     if (!newUploadTitle.trim() || !newUploadDepartmentId || !newUploadCategoryId || !uploadFile) {
       setFormIssues(['Title, departmentId, categoryId, and file are all required for upload.'])
+      return
+    }
+    if (enforceDepartmentScope && !departmentScopeIds.includes(Number(newUploadDepartmentId))) {
+      setFormIssues(['You can only upload documents inside your assigned department(s).'])
       return
     }
     setFormIssues([])
@@ -664,8 +709,6 @@ function App() {
 
   async function handleDeleteSelectedDocument() {
     if (!selectedDocumentId) return
-    const confirmed = window.confirm(`Delete document ${selectedDocumentId}? This cannot be undone.`)
-    if (!confirmed) return
     try {
       await wrapRequest('deleteDocument', () =>
         deleteDocument(apiBaseUrl, authSession?.token, selectedDocumentId),
@@ -685,10 +728,73 @@ function App() {
     }
   }
 
+  async function handleTranslateSelectedDocument() {
+    if (!selectedDocumentId) return
+    try {
+      await wrapRequest('requestDocumentTranslation', () =>
+        requestDocumentTranslation(apiBaseUrl, authSession?.token, selectedDocumentId),
+      )
+      recordAudit('REQUEST', 'DocumentTranslation', `docId=${selectedDocumentId}`)
+      setToast('Translation requested. It will appear once processing completes.')
+      await loadDocuments(true)
+      await handleLoadFullDocument()
+    } catch (err) {
+      setError(`Failed to request translation: ${err.message}`)
+    }
+  }
+
+  async function handleUpdateComment(comment) {
+    const docId = String(comment?.docId || comment?.key?.docId || '').trim()
+    const commentId = String(comment?.key?.commentId || comment?.id || '').trim()
+    const content = String(comment?.content || '').trim()
+    if (!docId || !commentId || !content) {
+      setError('Cannot update comment: missing docId/commentId/content.')
+      return
+    }
+    try {
+      await wrapRequest('updateComment', () =>
+        updateComment(apiBaseUrl, authSession?.token, docId, commentId, content),
+      )
+      recordAudit('UPDATE', 'Comment', `docId=${docId} commentId=${commentId}`)
+      setToast('Comment updated.')
+      await loadCommentsForDoc(commentDocId || docId)
+    } catch (err) {
+      setError(`Failed to update comment: ${err.message}`)
+    }
+  }
+
+  async function handleDeleteComment(comment) {
+    const docId = String(comment?.docId || comment?.key?.docId || '').trim()
+    const commentId = String(comment?.key?.commentId || comment?.id || '').trim()
+    if (!docId || !commentId) {
+      setError('Cannot delete comment: missing docId/commentId.')
+      return
+    }
+    try {
+      await wrapRequest('deleteComment', () =>
+        deleteComment(apiBaseUrl, authSession?.token, docId, commentId),
+      )
+      recordAudit('DELETE', 'Comment', `docId=${docId} commentId=${commentId}`)
+      setToast('Comment deleted.')
+      await loadCommentsForDoc(commentDocId || docId)
+    } catch (err) {
+      setError(`Failed to delete comment: ${err.message}`)
+    }
+  }
+
   async function handleAddComment(event) {
     event.preventDefault()
     if (!commentDocId || !commentContent.trim()) {
-      setFormIssues(['Comment document id and text are required.'])
+      setFormIssues(['Select a document and enter comment text.'])
+      return
+    }
+    const commentDocVisible = documents.some((doc) => {
+      if (String(doc.id) !== String(commentDocId)) return false
+      if (!enforceDepartmentScope) return true
+      return departmentScopeIds.includes(Number(doc.departmentId))
+    })
+    if (!commentDocVisible) {
+      setFormIssues(['You can only comment on documents visible to your department scope.'])
       return
     }
     setFormIssues([])
@@ -769,6 +875,37 @@ function App() {
     }
   }
 
+  async function handleUpdateDepartment(departmentId, name) {
+    const nextName = String(name || '').trim()
+    if (!nextName) {
+      setFormIssues(['Department name is required.'])
+      return
+    }
+    try {
+      const updated = await wrapRequest('updateDepartment', () =>
+        updateDepartment(apiBaseUrl, authSession?.token, departmentId, nextName),
+      )
+      recordAudit('UPDATE', 'Department', `id=${updated.id} name=${updated.name}`)
+      setToast('Department updated.')
+      await loadDepartments()
+    } catch (err) {
+      setError(`Failed to update department: ${err.message}`)
+    }
+  }
+
+  async function handleDeleteDepartment(departmentId) {
+    try {
+      await wrapRequest('deleteDepartment', () =>
+        deleteDepartment(apiBaseUrl, authSession?.token, departmentId),
+      )
+      recordAudit('DELETE', 'Department', `id=${departmentId}`)
+      setToast('Department deleted.')
+      await loadDepartments()
+    } catch (err) {
+      setError(`Failed to delete department: ${err.message}`)
+    }
+  }
+
   async function handleCreateCategory(event) {
     event.preventDefault()
     if (!newCategoryName.trim()) {
@@ -786,6 +923,37 @@ function App() {
       await loadCategories()
     } catch (err) {
       setError(`Failed to create category: ${err.message}`)
+    }
+  }
+
+  async function handleUpdateCategory(categoryId, name) {
+    const nextName = String(name || '').trim()
+    if (!nextName) {
+      setFormIssues(['Category name is required.'])
+      return
+    }
+    try {
+      const updated = await wrapRequest('updateCategory', () =>
+        updateCategory(apiBaseUrl, authSession?.token, categoryId, nextName),
+      )
+      recordAudit('UPDATE', 'Category', `id=${updated.id} name=${updated.name}`)
+      setToast('Category updated.')
+      await loadCategories()
+    } catch (err) {
+      setError(`Failed to update category: ${err.message}`)
+    }
+  }
+
+  async function handleDeleteCategory(categoryId) {
+    try {
+      await wrapRequest('deleteCategory', () =>
+        deleteCategory(apiBaseUrl, authSession?.token, categoryId),
+      )
+      recordAudit('DELETE', 'Category', `id=${categoryId}`)
+      setToast('Category deleted.')
+      await loadCategories()
+    } catch (err) {
+      setError(`Failed to delete category: ${err.message}`)
     }
   }
 
@@ -826,6 +994,88 @@ function App() {
       setToast('User password reset.')
     } catch (err) {
       setError(`Failed to reset password: ${err.message}`)
+    }
+  }
+
+  function startEditUser(user) {
+    if (!user?.id) return
+    setEditingUserId(user.id)
+    setEditingUserRole(normalizeRole(user.role))
+    setEditingUserActive(Boolean(user.active))
+    setEditingUserPassword('')
+    setEditingUserDepartments(
+      Array.isArray(user.departmentIds)
+        ? user.departmentIds.map((id) => Number(id)).filter((id) => Number.isFinite(id))
+        : [],
+    )
+    setPendingDeleteUserId(null)
+  }
+
+  function cancelEditUser() {
+    setEditingUserId(null)
+    setEditingUserRole('Analyst')
+    setEditingUserActive(true)
+    setEditingUserPassword('')
+    setEditingUserDepartments([])
+  }
+
+  async function saveEditedUser() {
+    if (!editingUserId) return
+    const user = users.find((entry) => entry.id === editingUserId)
+    if (!user) return
+
+    try {
+      setUserActionBusy(true)
+      if (editingUserRole.toUpperCase() !== String(user.role || '').toUpperCase()) {
+        await wrapRequest('updateRole', () => updateUserRole(apiBaseUrl, authSession?.token, user.id, editingUserRole.toUpperCase()))
+      }
+      if (editingUserActive !== Boolean(user.active)) {
+        await wrapRequest('updateState', () => updateUserState(apiBaseUrl, authSession?.token, user.id, editingUserActive))
+      }
+      if (editingUserPassword.trim()) {
+        await wrapRequest('resetPassword', () => resetUserPassword(apiBaseUrl, authSession?.token, user.id, editingUserPassword.trim()))
+      }
+      const currentDepartmentIds = Array.isArray(user.departmentIds)
+        ? user.departmentIds.map((id) => Number(id)).filter((id) => Number.isFinite(id)).sort((a, b) => a - b)
+        : []
+      const nextDepartmentIds = [...new Set(editingUserDepartments.map((id) => Number(id)).filter((id) => Number.isFinite(id)))].sort((a, b) => a - b)
+      if (JSON.stringify(currentDepartmentIds) !== JSON.stringify(nextDepartmentIds)) {
+        await wrapRequest('updateDepartments', () => updateUserDepartments(apiBaseUrl, authSession?.token, user.id, nextDepartmentIds))
+      }
+      recordAudit('UPDATE', 'User', `userId=${user.id} role=${editingUserRole} active=${editingUserActive}`)
+      setToast('User updated successfully.')
+      cancelEditUser()
+      await loadUsers()
+    } catch (err) {
+      setError(`Failed to edit user: ${err.message}`)
+    } finally {
+      setUserActionBusy(false)
+    }
+  }
+
+  function requestDeleteUser(user) {
+    if (!user?.id) return
+    setPendingDeleteUserId(user.id)
+    setEditingUserId(null)
+  }
+
+  function cancelDeleteUser() {
+    setPendingDeleteUserId(null)
+  }
+
+  async function confirmDeleteUser(user) {
+    if (!user?.id) return
+    try {
+      setUserActionBusy(true)
+      await wrapRequest('softDeleteUser', () => updateUserState(apiBaseUrl, authSession?.token, user.id, false))
+      recordAudit('DELETE', 'User', `userId=${user.id} softDelete=true`)
+      setToast('User soft-deleted (account disabled).')
+      setPendingDeleteUserId(null)
+      await loadUsers()
+    } catch (err) {
+      setError(`Failed to delete user: ${err.message}`)
+    } finally {
+      setUserActionBusy(false)
     }
   }
 
@@ -1078,9 +1328,14 @@ function App() {
   }, [activeTab, authSession?.token, consoleFilter]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // -- Memos (Filtering)
+  const visibleDocuments = useMemo(() => {
+    if (!enforceDepartmentScope) return documents
+    return documents.filter((doc) => departmentScopeIds.includes(Number(doc.departmentId)))
+  }, [documents, enforceDepartmentScope, departmentScopeIds])
+
   const filteredDocuments = useMemo(() => {
     const q = query.trim().toLowerCase()
-    const next = documents.filter((doc) => {
+    const next = visibleDocuments.filter((doc) => {
       const matchesQuery =
         !q ||
         [doc.title, doc.fileName, String(doc.id)].some((field) =>
@@ -1103,7 +1358,12 @@ function App() {
       if (docSortBy === 'title') return sortByText(left.title, right.title, docSortDir)
       return sortByText(left.fileName, right.fileName, docSortDir)
     })
-  }, [documents, query, docFileFilter, docSortBy, docSortDir])
+  }, [visibleDocuments, query, docFileFilter, docSortBy, docSortDir])
+
+  const visibleDepartments = useMemo(() => {
+    if (!enforceDepartmentScope) return departments
+    return departments.filter((department) => departmentScopeIds.includes(Number(department.id)))
+  }, [departments, enforceDepartmentScope, departmentScopeIds])
 
   const filteredComments = useMemo(() => {
     const q = commentQuery.trim().toLowerCase()
@@ -1219,7 +1479,7 @@ function App() {
           <span>Signed in user</span>
           <p><strong>{authSession.username}</strong> ({role})</p>
           <p className="small-note">{me?.email || 'email unavailable'}</p>
-          <button
+          {/* <button
             className="btn ghost"
             type="button"
             onClick={async () => {
@@ -1228,23 +1488,32 @@ function App() {
             }}
           >
             Copy Token
-          </button>
+          </button> */}
           <button className="btn ghost top-gap" type="button" onClick={handleLogout}>
             Logout
           </button>
         </div>
 
         <nav className="nav-grid" aria-label="Dashboard tabs">
-          {visibleTabs.map((tab) => (
-            <button
-              key={tab.id}
-              className={tab.id === activeTab ? 'nav-item active' : 'nav-item'}
-              onClick={() => setActiveTab(tab.id)}
-              type="button"
-            >
-              {tab.label}
-            </button>
-          ))}
+          {navSections.map((section) => {
+            const tabs = visibleTabs.filter((tab) => tab.section === section)
+            if (tabs.length === 0) return null
+            return (
+              <div key={section} className="nav-section">
+                <p className="nav-section-label">{section}</p>
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    className={tab.id === activeTab ? 'nav-item active' : 'nav-item'}
+                    onClick={() => setActiveTab(tab.id)}
+                    type="button"
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            )
+          })}
         </nav>
       </aside>
 
@@ -1316,7 +1585,7 @@ function App() {
         {/* --- Tabs --- */}
         {activeTab === 'overview' && (
           <OverviewTab
-            documents={documents}
+            documents={visibleDocuments}
             comments={comments}
             environment={environment}
             role={role}
@@ -1329,7 +1598,7 @@ function App() {
 
         {activeTab === 'documents' && (
           <DocumentsTab
-            documents={documents}
+            documents={visibleDocuments}
             filteredDocuments={filteredDocuments}
             loadingDocs={loadingDocs}
             selectedDocumentId={selectedDocumentId}
@@ -1369,10 +1638,12 @@ function App() {
             handleReplaceFile={handleReplaceFile}
             handleDownloadSelectedDocument={handleDownloadSelectedDocument}
             handleGetPresignedUrl={handleGetPresignedUrl}
+            handleTranslateSelectedDocument={handleTranslateSelectedDocument}
             handleDeleteSelectedDocument={handleDeleteSelectedDocument}
             role={role}
-            departments={departments}
+            departments={visibleDepartments}
             categories={categories}
+            enforceDepartmentScope={enforceDepartmentScope}
           />
         )}
 
@@ -1398,6 +1669,8 @@ function App() {
 
         {activeTab === 'comments' && (
           <CommentsTab
+            documents={visibleDocuments}
+            setCommentDocId={setCommentDocId}
             commentDocId={commentDocId}
             commentContent={commentContent}
             setCommentContent={setCommentContent}
@@ -1419,6 +1692,9 @@ function App() {
             handleAddComment={handleAddComment}
             loadCommentsForDoc={loadCommentsForDoc}
             role={role}
+            enforceDepartmentScope={enforceDepartmentScope}
+            handleUpdateComment={handleUpdateComment}
+            handleDeleteComment={handleDeleteComment}
           />
         )}
 
@@ -1506,12 +1782,37 @@ function App() {
             updateUserRoleLocal={updateUserRoleLocal}
             toggleUserActive={toggleUserActive}
             handleResetUserPassword={handleResetUserPassword}
+            startEditUser={startEditUser}
+            cancelEditUser={cancelEditUser}
+            saveEditedUser={saveEditedUser}
+            editingUserId={editingUserId}
+            editingUserRole={editingUserRole}
+            setEditingUserRole={setEditingUserRole}
+            editingUserActive={editingUserActive}
+            setEditingUserActive={setEditingUserActive}
+            editingUserPassword={editingUserPassword}
+            setEditingUserPassword={setEditingUserPassword}
+            editingUserDepartments={editingUserDepartments}
+            setEditingUserDepartments={setEditingUserDepartments}
+            requestDeleteUser={requestDeleteUser}
+            confirmDeleteUser={confirmDeleteUser}
+            cancelDeleteUser={cancelDeleteUser}
+            pendingDeleteUserId={pendingDeleteUserId}
+            userActionBusy={userActionBusy}
+            handleUpdateDepartment={handleUpdateDepartment}
+            handleDeleteDepartment={handleDeleteDepartment}
+            handleUpdateCategory={handleUpdateCategory}
+            handleDeleteCategory={handleDeleteCategory}
             handleCreateDepartment={handleCreateDepartment}
             newDepartmentName={newDepartmentName}
             setNewDepartmentName={setNewDepartmentName}
             handleCreateCategory={handleCreateCategory}
             newCategoryName={newCategoryName}
             setNewCategoryName={setNewCategoryName}
+            departments={departments}
+            categories={categories}
+            loadDepartments={loadDepartments}
+            loadCategories={loadCategories}
             ROLES={ROLES}
             ROLE_PERMISSIONS={ROLE_PERMISSIONS}
             normalizeRole={normalizeRole}

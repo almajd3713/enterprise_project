@@ -1,14 +1,14 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
 
 :root {
-  --text: #102534;
-  --text-h: #0b1c2a;
-  --soft: #37576f;
-  --bg: #f3f8fb;
-  --line: #b8d3e2;
+  --text: #132c3f;
+  --text-h: #0e2435;
+  --soft: #3f5f78;
+  --bg: #eef3f8;
+  --line: #b6cedd;
   --panel: #ffffff;
-  --panel-alt: #eff7fb;
-  --code-bg: #e9f4fb;
+  --panel-alt: #edf5fb;
+  --code-bg: #eaf3fa;
 
   --sans: 'Space Grotesk', 'Segoe UI', sans-serif;
   --heading: 'Space Grotesk', 'Segoe UI', sans-serif;
@@ -17,7 +17,10 @@
   font: 16px/1.45 var(--sans);
   letter-spacing: 0.01em;
   color: var(--text);
-  background: radial-gradient(circle at top right, #dcf4ff 0%, #f3f8fb 52%, #e9f0f6 100%);
+  background:
+    radial-gradient(circle at top left, #d9eeff 0%, transparent 38%),
+    radial-gradient(circle at 92% 16%, #d9fff2 0%, transparent 30%),
+    linear-gradient(180deg, #f4f8fc 0%, #edf2f8 100%);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;

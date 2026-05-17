@@ -1,13 +1,19 @@
 export default function AnalyticsTab({ analytics }) {
   return (
-    <section className="panel-grid two">
+    <section className="panel-grid three">
       <article className="panel">
-        <h2>Core KPI</h2>
+        <h2>Request Quality</h2>
         <div className="kpi-list">
           <p>Total Requests: <strong>{analytics.totalReq}</strong></p>
           <p>Success Rate: <strong>{analytics.successRate}%</strong></p>
-          <p>Average Latency: <strong>{analytics.avgLatency} ms</strong></p>
-          <p>p95 Latency: <strong>{analytics.p95} ms</strong></p>
+          <p>Failed Requests: <strong>{analytics.failed}</strong></p>
+        </div>
+      </article>
+      <article className="panel">
+        <h2>Latency</h2>
+        <div className="kpi-list">
+          <p>Average: <strong>{analytics.avgLatency} ms</strong></p>
+          <p>p95: <strong>{analytics.p95} ms</strong></p>
         </div>
       </article>
       <article className="panel">

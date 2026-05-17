@@ -341,8 +341,12 @@ services:
       KAFKA_GROUP_ID: translator-service
       KAFKA_AUTO_OFFSET_RESET: earliest
       KAFKA_ENABLE_AUTO_COMMIT: "false"
+      TRANSLATION_PROVIDERS: ${TRANSLATION_PROVIDERS:-libretranslate,google,gemini,mock}
+      LIBRETRANSLATE_URL: ${LIBRETRANSLATE_URL:-http://libretranslate:5000}
+      LIBRETRANSLATE_API_KEY: ${LIBRETRANSLATE_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: gemini-2.0-flash
+      GOOGLE_TRANSLATE_API_KEY: ${GOOGLE_TRANSLATE_API_KEY:-}
       TRANSLATION_TARGET_LANGUAGE: fr
       TRANSLATION_SOURCE_LANGUAGE: en
       TRANSLATION_RETRIES: 3
@@ -350,6 +354,16 @@ services:
     depends_on:
       kafka-init:
         condition: service_completed_successfully
+      libretranslate:
+        condition: service_started
+    restart: unless-stopped
+
+  libretranslate:
+    image: libretranslate/libretranslate:latest
+    ports:
+      - "5050:5000"
+    environment:
+      LT_LOAD_ONLY: ${LT_LOAD_ONLY:-en,fr}
     restart: unless-stopped
 
 volumes:

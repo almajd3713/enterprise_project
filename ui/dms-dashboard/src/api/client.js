@@ -100,6 +100,23 @@ export async function createDepartment(baseUrl, token, name) {
   return readJson(response)
 }
 
+export async function updateDepartment(baseUrl, token, departmentId, name) {
+  const response = await fetch(buildUrl(baseUrl, `/departments/${departmentId}`), {
+    method: 'PATCH',
+    headers: buildAuthHeaders(token, { 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ name }),
+  })
+  return readJson(response)
+}
+
+export async function deleteDepartment(baseUrl, token, departmentId) {
+  const response = await fetch(buildUrl(baseUrl, `/departments/${departmentId}`), {
+    method: 'DELETE',
+    headers: buildAuthHeaders(token),
+  })
+  return readJson(response)
+}
+
 export async function fetchCategories(baseUrl, token) {
   const response = await fetch(buildUrl(baseUrl, '/documents/categories'), {
     headers: buildAuthHeaders(token),
@@ -112,6 +129,23 @@ export async function createCategory(baseUrl, token, name) {
     method: 'POST',
     headers: buildAuthHeaders(token, { 'Content-Type': 'application/json' }),
     body: JSON.stringify({ name }),
+  })
+  return readJson(response)
+}
+
+export async function updateCategory(baseUrl, token, categoryId, name) {
+  const response = await fetch(buildUrl(baseUrl, `/documents/categories/${categoryId}`), {
+    method: 'PATCH',
+    headers: buildAuthHeaders(token, { 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ name }),
+  })
+  return readJson(response)
+}
+
+export async function deleteCategory(baseUrl, token, categoryId) {
+  const response = await fetch(buildUrl(baseUrl, `/documents/categories/${categoryId}`), {
+    method: 'DELETE',
+    headers: buildAuthHeaders(token),
   })
   return readJson(response)
 }
@@ -135,6 +169,14 @@ export function getDownloadDocumentFileUrl(baseUrl, documentId) {
 
 export async function getDocumentPresignedUrl(baseUrl, token, documentId) {
   const response = await fetch(buildUrl(baseUrl, `/documents/${documentId}/presigned-url`), {
+    headers: buildAuthHeaders(token),
+  })
+  return readJson(response)
+}
+
+export async function requestDocumentTranslation(baseUrl, token, documentId) {
+  const response = await fetch(buildUrl(baseUrl, `/documents/${documentId}/translate`), {
+    method: 'POST',
     headers: buildAuthHeaders(token),
   })
   return readJson(response)
@@ -181,6 +223,23 @@ export async function addComment(baseUrl, token, payload) {
   return readJson(response)
 }
 
+export async function updateComment(baseUrl, token, docId, commentId, content) {
+  const response = await fetch(buildUrl(baseUrl, `/comments/${docId}/${commentId}`), {
+    method: 'PATCH',
+    headers: buildAuthHeaders(token, { 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ content }),
+  })
+  return readJson(response)
+}
+
+export async function deleteComment(baseUrl, token, docId, commentId) {
+  const response = await fetch(buildUrl(baseUrl, `/comments/${docId}/${commentId}`), {
+    method: 'DELETE',
+    headers: buildAuthHeaders(token),
+  })
+  return readJson(response)
+}
+
 export async function fetchUsers(baseUrl, token, params = {}) {
   const query = new URLSearchParams()
   if (params.query) query.set('query', params.query)
@@ -216,6 +275,15 @@ export async function updateUserState(baseUrl, token, userId, active) {
     method: 'PATCH',
     headers: buildAuthHeaders(token, { 'Content-Type': 'application/json' }),
     body: JSON.stringify({ active }),
+  })
+  return readJson(response)
+}
+
+export async function updateUserDepartments(baseUrl, token, userId, departmentIds) {
+  const response = await fetch(buildUrl(baseUrl, `/users/${userId}/departments`), {
+    method: 'PATCH',
+    headers: buildAuthHeaders(token, { 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ departmentIds }),
   })
   return readJson(response)
 }
