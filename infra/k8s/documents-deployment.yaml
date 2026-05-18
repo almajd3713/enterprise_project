@@ -12,9 +12,22 @@ spec:
       labels:
         app: documents-service
     spec:
+      initContainers:
+        - name: ensure-minio-bucket
+          image: minio/mc:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              until mc alias set local http://minio:9000 admin ensia1234 >/dev/null 2>&1; do
+                echo "waiting for minio..."
+                sleep 3
+              done
+              mc mb --ignore-existing local/documents
       containers:
         - name: documents-service
-          image: ttl.sh/enterprise-reel-documents-20260406113259:2h
+          image: dms-documents:minikube
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8081
@@ -23,6 +36,14 @@ spec:
               value: postgres
             - name: COMMENTS_SERVICE_URL
               value: http://comments-service:8083
+            - name: JWT_SECRET
+              value: omg-very-sectret_one-two-tres_reelus
+            - name: AWS_S3_ENDPOINT
+              value: http://minio:9000
+            - name: MINIO_PUBLIC_ENDPOINT
+              value: http://localhost:19000
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: kafka:9092
           resources:
             requests:
               cpu: 200m

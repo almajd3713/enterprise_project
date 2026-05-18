@@ -1,46 +1,60 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useParams } from 'react-router-dom'
-import { apiDelete, apiDownload, apiGet, apiPatch, apiPost, apiUpload } from '../shared/api/http'
-import type { Comment, Document } from '../shared/types'
+import { useNavigate, useParams } from 'react-router-dom'
+import { apiDelete, apiGet, apiPatch, apiPost, apiUpload } from '../shared/api/http'
+import type { Category, Department, Document } from '../shared/types'
+import { useAuth } from '../features/auth/auth-context'
 import { PageHeader } from '../shared/ui/PageHeader'
-import { ConfirmDialog } from '../shared/ui/ConfirmDialog'
 import { useToast } from '../shared/ui/ToastProvider'
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
+import { Button } from '../components/ui/button'
+import { Input } from '../components/ui/input'
+import { CommentThread } from '../features/comments/CommentThread'
 
-type FullPayload = { document: Document; comments: Comment[] }
+type FullPayload = { document: Document; comments: Array<{ key: { docId: string; commentId: string }; content: string; author: string }> }
+type PresignedDownload = { documentId: string; fileName: string; url: string }
 
 export function DocumentDetailPage() {
+  const { me } = useAuth()
   const { pushToast } = useToast()
+  const navigate = useNavigate()
   const { id = '' } = useParams()
+  const [translationPending, setTranslationPending] = useState(false)
+  const translationPollTimeoutRef = useRef<number | null>(null)
   const { data, refetch } = useQuery({
     queryKey: ['doc', id],
-    queryFn: () => apiGet<FullPayload>(`/documents/full/${id}`),
-    enabled: Boolean(id),
-  })
-  const [comment, setComment] = useState('')
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editValue, setEditValue] = useState('')
-  const [deleteId, setDeleteId] = useState<string | null>(null)
-
-  function extractCommentId(value: unknown): string | null {
-    if (typeof value === 'string') return value
-    if (value && typeof value === 'object') {
-      const raw = (value as { commentId?: unknown }).commentId
-      if (typeof raw === 'string') return raw
-      if (raw && typeof raw === 'object') {
-        const low = (raw as { leastSignificantBits?: unknown }).leastSignificantBits
-        const high = (raw as { mostSignificantBits?: unknown }).mostSignificantBits
-        if (typeof low === 'number' && typeof high === 'number') return `${high}:${low}`
+    queryFn: async () => {
+      try {
+        return await apiGet<FullPayload>(`/documents/full/${id}`)
+      } catch {
+        const document = await apiGet<Document>(`/documents/get/${id}`)
+        return { document, comments: [] as FullPayload['comments'] }
       }
-    }
-    return null
-  }
+    },
+    enabled: Boolean(id),
+    refetchInterval: translationPending ? 2000 : false,
+  })
+  const { data: departments = [] } = useQuery({ queryKey: ['departments'], queryFn: () => apiGet<Department[]>('/departments') })
+  const { data: categories = [] } = useQuery({ queryKey: ['categories'], queryFn: () => apiGet<Category[]>('/documents/categories') })
+  const hasFile = Boolean(data?.document.fileKey)
+  const [editMode, setEditMode] = useState(false)
+  const [editTitle, setEditTitle] = useState('')
+  const [editDescription, setEditDescription] = useState('')
+  const [editDepartmentId, setEditDepartmentId] = useState('')
+  const [editCategoryId, setEditCategoryId] = useState('')
+  const [downloadUrl, setDownloadUrl] = useState('')
 
-  async function postComment(e: FormEvent) {
-    e.preventDefault()
-    await apiPost('/comments/add', { docId: id, content: comment })
-    setComment('')
+  useEffect(() => {
+    if (!data?.document) return
+    setEditTitle(data.document.title ?? '')
+    setEditDescription(data.document.description ?? '')
+    setEditDepartmentId(data.document.departmentId != null ? String(data.document.departmentId) : '')
+    setEditCategoryId(data.document.categoryId != null ? String(data.document.categoryId) : '')
+  }, [data?.document])
+
+  async function postComment(content: string) {
+    await apiPost('/comments/add', { docId: id, content })
     await refetch()
     pushToast('success', 'Comment added.')
   }
@@ -48,6 +62,14 @@ export function DocumentDetailPage() {
   async function requestTranslation() {
     try {
       const response = await apiPost<{ message?: string }>(`/documents/${id}/translate`)
+      if (translationPollTimeoutRef.current != null) {
+        window.clearTimeout(translationPollTimeoutRef.current)
+      }
+      setTranslationPending(true)
+      translationPollTimeoutRef.current = window.setTimeout(() => {
+        setTranslationPending(false)
+        translationPollTimeoutRef.current = null
+      }, 20000)
       await refetch()
       pushToast('info', response?.message ?? 'Translation requested.')
     } catch (err) {
@@ -55,8 +77,41 @@ export function DocumentDetailPage() {
     }
   }
 
+  useEffect(() => {
+    return () => {
+      if (translationPollTimeoutRef.current != null) {
+        window.clearTimeout(translationPollTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  async function loadPresignedUrl(): Promise<PresignedDownload> {
+    const link = await apiGet<PresignedDownload>(`/documents/${id}/presigned-url`)
+    setDownloadUrl(link.url)
+    return link
+  }
+
+  async function copyDownloadLink() {
+    try {
+      const link = await loadPresignedUrl()
+      await navigator.clipboard.writeText(link.url)
+      pushToast('success', 'Download link copied.')
+    } catch (err) {
+      pushToast('error', err instanceof Error ? err.message : 'Failed to copy download link')
+    }
+  }
+
   async function downloadFile() {
-    const blob = await apiDownload(`/documents/${id}/file`)
+    const first = downloadUrl ? { url: downloadUrl } as PresignedDownload : await loadPresignedUrl()
+    let fileResponse = await fetch(first.url)
+    if (!fileResponse.ok) {
+      const refreshed = await loadPresignedUrl()
+      fileResponse = await fetch(refreshed.url)
+      if (!fileResponse.ok) {
+        throw new Error(`Download failed (${fileResponse.status})`)
+      }
+    }
+    const blob = await fileResponse.blob()
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -67,106 +122,102 @@ export function DocumentDetailPage() {
 
   async function replaceFile(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    const form = new FormData(e.currentTarget)
+    const formEl = e.currentTarget
+    const form = new FormData(formEl)
     await apiUpload(`/documents/${id}/file`, form)
-    e.currentTarget.reset()
+    formEl.reset()
     await refetch()
     pushToast('success', 'File replaced.')
   }
 
-  function startEdit(target: Comment) {
-    const resolvedId = extractCommentId(target.key?.commentId)
-    if (!resolvedId) {
-      pushToast('error', 'Invalid comment id. Refresh and try again.')
-      return
+  async function saveDocumentMetadata(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    try {
+      await apiPatch(`/documents/${id}`, {
+        title: editTitle,
+        description: editDescription,
+        departmentId: editDepartmentId ? Number(editDepartmentId) : null,
+        categoryId: editCategoryId ? Number(editCategoryId) : null,
+      })
+      await refetch()
+      setEditMode(false)
+      pushToast('success', 'Document metadata updated.')
+    } catch (err) {
+      pushToast('error', err instanceof Error ? err.message : 'Document update failed')
     }
-    setEditingId(resolvedId)
-    setEditValue(target.content)
   }
 
-  async function saveEdit() {
-    if (!editingId) return
+  async function saveEdit(commentId: string, content: string) {
     try {
-      await apiPatch(`/comments/${id}/${editingId}`, { content: editValue })
-      setEditingId(null)
-      setEditValue('')
+      await apiPatch(`/comments/${id}/${commentId}`, { content })
       await refetch()
       pushToast('success', 'Comment updated.')
     } catch (err) {
       pushToast('error', err instanceof Error ? err.message : 'Comment update failed')
+      throw err
     }
   }
 
-  async function deleteComment() {
-    if (!deleteId) return
+  async function deleteComment(commentId: string) {
     try {
-      await apiDelete(`/comments/${id}/${deleteId}`)
-      setDeleteId(null)
+      await apiDelete(`/comments/${id}/${commentId}`)
       await refetch()
       pushToast('success', 'Comment deleted.')
     } catch (err) {
       pushToast('error', err instanceof Error ? err.message : 'Comment delete failed')
+      throw err
     }
   }
 
   return (
     <section className="stack-lg">
-      <PageHeader title={data?.document.title ?? 'Document detail'} subtitle="Manage file, translation and discussion." />
-      <section className="grid two">
-        <article className="card">
-          <h2>Document actions</h2>
-          <p><strong>Owner:</strong> {data?.document.ownerId}</p>
-          <p><strong>Department:</strong> {data?.document.departmentId ?? '-'}</p>
-          <p><strong>Category:</strong> {data?.document.categoryId ?? '-'}</p>
-          <p><strong>Translated text:</strong> {data?.document.translatedText || 'Not available'}</p>
-          <div className="actions">
-            <button type="button" onClick={requestTranslation}>Request translation</button>
-            <button type="button" onClick={downloadFile}>Download file</button>
-          </div>
-          <form onSubmit={replaceFile} className="inline-form">
-            <label>Replace file<input name="file" type="file" required /></label>
-            <button type="submit">Upload replacement</button>
-          </form>
-        </article>
-        <article className="card">
-          <h2>Comments</h2>
-          <ul className="list">
-            {data?.comments.map((c, index) => {
-              const commentId = extractCommentId(c.key?.commentId) ?? String(index)
-              return (
-              <li key={commentId}>
-                {editingId === commentId ? (
-                  <div className="comment-edit">
-                    <input value={editValue} onChange={(e) => setEditValue(e.target.value)} aria-label="Edit comment" />
-                    <button type="button" onClick={saveEdit}>Save</button>
-                    <button type="button" className="btn-ghost" onClick={() => setEditingId(null)}>Cancel</button>
-                  </div>
-                ) : (
-                  <>
-                    <span><strong>{c.author}</strong>: {c.content}</span>
-                    <span className="row-actions">
-                      <button type="button" className="btn-ghost" onClick={() => startEdit(c)}>Edit</button>
-                      <button type="button" className="btn-danger" onClick={() => setDeleteId(commentId)}>Delete</button>
-                    </span>
-                  </>
-                )}
-              </li>
-            )})}
-          </ul>
-          <form onSubmit={postComment}>
-            <label>Add comment<input value={comment} onChange={(e) => setComment(e.target.value)} required /></label>
-            <button type="submit">Post comment</button>
-          </form>
-        </article>
-      </section>
-      <ConfirmDialog
-        open={Boolean(deleteId)}
-        title="Delete comment"
-        description="This action cannot be undone."
-        confirmText="Delete"
-        onCancel={() => setDeleteId(null)}
-        onConfirm={deleteComment}
+      <PageHeader
+        title={data?.document.title ?? 'Document detail'}
+        subtitle="Manage file, translation and discussion."
+        actions={<Button type="button" variant="secondary" onClick={() => navigate('/documents')}>← Back</Button>}
       />
+      <section className="grid two">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Document actions</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-2 text-sm">
+            <p><strong>Owner:</strong> {data?.document.ownerId}</p>
+            <p><strong>Department:</strong> {data?.document.departmentId != null ? (departments.find((d) => d.id === data.document.departmentId)?.name ?? `Department #${data.document.departmentId}`) : '-'}</p>
+            <p><strong>Category:</strong> {data?.document.categoryId != null ? (categories.find((c) => c.id === data.document.categoryId)?.name ?? `Category #${data.document.categoryId}`) : '-'}</p>
+            <p><strong>File:</strong> {hasFile ? (data?.document.fileName ?? 'Attached') : 'No file uploaded'}</p>
+            <p><strong>Description:</strong> {data?.document.description || 'Not available'}</p>
+            <p><strong>Translated title:</strong> {data?.document.translatedText || 'Not available'}</p>
+            <p><strong>Translated description:</strong> {data?.document.translatedDescription || 'Not available'}</p>
+            <div className="actions mt-2">
+              <Button type="button" onClick={requestTranslation}>Request translation</Button>
+              <Button type="button" variant="secondary" onClick={downloadFile} disabled={!hasFile}>Download file</Button>
+              <Button type="button" variant="secondary" onClick={copyDownloadLink} disabled={!hasFile}>Copy download link</Button>
+              <Button type="button" variant="secondary" onClick={() => setEditMode((v) => !v)}>{editMode ? 'Cancel edit' : 'Edit metadata'}</Button>
+            </div>
+            {downloadUrl ? (
+              <label className="grid gap-1 text-sm font-medium mt-1">
+                Pre-signed download URL
+                <Input readOnly value={downloadUrl} />
+              </label>
+            ) : null}
+            {editMode ? (
+              <form onSubmit={saveDocumentMetadata} className="grid gap-2 mt-2">
+                <label className="grid gap-1 text-sm font-medium">Title<Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} required /></label>
+                <label className="grid gap-1 text-sm font-medium">Description<textarea value={editDescription} onChange={(e) => setEditDescription(e.target.value)} rows={3} /></label>
+                <label className="grid gap-1 text-sm font-medium">Department<select value={editDepartmentId} onChange={(e) => setEditDepartmentId(e.target.value)}><option value="">No department</option>{departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
+                <label className="grid gap-1 text-sm font-medium">Category<select value={editCategoryId} onChange={(e) => setEditCategoryId(e.target.value)}><option value="">No category</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+                <Button type="submit">Save metadata</Button>
+              </form>
+            ) : null}
+            <form onSubmit={replaceFile} className="inline-form mt-2">
+              <label className="grid gap-1 text-sm font-medium">Replace file<Input name="file" type="file" required /></label>
+              <Button type="submit">Upload replacement</Button>
+            </form>
+          </CardContent>
+        </Card>
+        <CommentThread comments={data?.comments ?? []} currentUser={me?.username} onCreate={postComment} onUpdate={saveEdit} onDelete={deleteComment} />
+      </section>
     </section>
   )
 }

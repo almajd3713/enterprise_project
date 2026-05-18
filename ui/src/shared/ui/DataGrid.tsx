@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Button } from '../../components/ui/button'
+import { Input } from '../../components/ui/input'
 
 export type GridColumn<T> = {
   id: string
@@ -121,10 +123,10 @@ export function DataGrid<T>({
                 return (
                   <th key={col.id} aria-sort={ariaSort}>
                     {col.sortable ? (
-                      <button type="button" className="sort-btn" onClick={() => toggleSort(col.id)}>
+                      <Button type="button" variant="ghost" size="sm" className="sort-btn" onClick={() => toggleSort(col.id)}>
                         {col.label}
                         <span aria-hidden="true">{active ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ' ↕'}</span>
-                      </button>
+                      </Button>
                     ) : col.label}
                   </th>
                 )}
@@ -171,27 +173,28 @@ export function DataGrid<T>({
           >
             <label>
               Go to
-              <input
+              <Input
                 inputMode="numeric"
                 pattern="[0-9]*"
                 value={jumpPage}
                 onChange={(e) => setJumpPage(e.target.value.replace(/[^\d]/g, ''))}
                 aria-label="Go to page number"
+                className="h-9"
               />
             </label>
-            <button type="submit" className="btn-ghost">Go</button>
+            <Button type="submit" variant="secondary" size="sm">Go</Button>
           </form>
         </div>
         <div className="pager-actions">
-          <button type="button" className="btn-ghost" onClick={() => goToPage(1)} disabled={safePage === 1}>First</button>
-          <button type="button" className="btn-ghost" onClick={() => goToPage(safePage - 1)} disabled={safePage === 1}>Prev</button>
+          <Button type="button" variant="secondary" size="sm" onClick={() => goToPage(1)} disabled={safePage === 1}>First</Button>
+          <Button type="button" variant="secondary" size="sm" onClick={() => goToPage(safePage - 1)} disabled={safePage === 1}>Prev</Button>
           {safePage > 2 ? <span className="pager-ellipsis" aria-hidden="true">…</span> : null}
           {pageWindow(safePage, totalPages).map((p) => (
-            <button key={p} type="button" className={p === safePage ? 'page-active' : 'btn-ghost'} onClick={() => goToPage(p)}>{p}</button>
+            <Button key={p} type="button" variant={p === safePage ? 'default' : 'secondary'} size="sm" className={p === safePage ? 'page-active' : ''} onClick={() => goToPage(p)}>{p}</Button>
           ))}
           {safePage < totalPages - 1 ? <span className="pager-ellipsis" aria-hidden="true">…</span> : null}
-          <button type="button" className="btn-ghost" onClick={() => goToPage(safePage + 1)} disabled={safePage === totalPages}>Next</button>
-          <button type="button" className="btn-ghost" onClick={() => goToPage(totalPages)} disabled={safePage === totalPages}>Last</button>
+          <Button type="button" variant="secondary" size="sm" onClick={() => goToPage(safePage + 1)} disabled={safePage === totalPages}>Next</Button>
+          <Button type="button" variant="secondary" size="sm" onClick={() => goToPage(totalPages)} disabled={safePage === totalPages}>Last</Button>
         </div>
         <span className="pager-page-label">Page {safePage} / {totalPages}</span>
       </footer>

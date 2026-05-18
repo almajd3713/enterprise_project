@@ -29,6 +29,7 @@ public class SearchIndexService {
         SearchDocument doc = repository.findById(event.documentId()).orElseGet(SearchDocument::new);
         doc.setDocumentId(event.documentId());
         doc.setTitle(event.title());
+        doc.setDescription(event.description());
         doc.setOwnerId(event.ownerId());
         doc.setDepartmentId(event.departmentId());
         doc.setCategoryId(event.categoryId());
@@ -40,13 +41,14 @@ public class SearchIndexService {
     }
 
     @Transactional
-    public void applyTranslation(Long documentId, String translatedText) {
+    public void applyTranslation(Long documentId, String translatedText, String translatedDescription) {
         if (documentId == null) {
             return;
         }
 
         repository.findById(documentId).ifPresent(doc -> {
             doc.setTranslatedText(translatedText);
+            doc.setTranslatedDescription(translatedDescription);
             doc.setUpdatedAt(Instant.now());
             repository.save(doc);
         });

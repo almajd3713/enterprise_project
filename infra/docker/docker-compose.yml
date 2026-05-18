@@ -14,6 +14,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://auth-postgres:5432/authdb
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
+      LOKI_URL: http://loki:3100
     depends_on:
       auth-postgres:
         condition: service_started
@@ -94,6 +95,9 @@ services:
       REDIS_HOST: redis
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_log:/var/lib/zookeeper/log
 
   kafka:
     image: confluentinc/cp-kafka:7.6.1
@@ -351,6 +355,8 @@ services:
       TRANSLATION_SOURCE_LANGUAGE: en
       TRANSLATION_RETRIES: 3
       TRANSLATION_RETRY_BACKOFF_SECONDS: 2
+      TRANSLATOR_METRICS_ENABLED: "true"
+      TRANSLATOR_METRICS_PORT: "9108"
     depends_on:
       kafka-init:
         condition: service_completed_successfully
@@ -369,5 +375,7 @@ services:
 volumes:
   minio_data:
   kafka_data:
+  zookeeper_data:
+  zookeeper_log:
   loki_data:
   promtail_positions:

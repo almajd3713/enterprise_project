@@ -1,8 +1,14 @@
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card'
+
 export function EmptyState({ title, body }: { title: string; body: string }) {
   return (
-    <section className="empty-state" role="status">
-      <h3>{title}</h3>
-      <p>{body}</p>
-    </section>
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-sm text-muted-foreground">{body}</p>
+      </CardContent>
+    </Card>
   )
 }

@@ -16,7 +16,8 @@ spec:
     spec:
       containers:
       - name: web
-        image: nginx
+        image: dms-web:minikube
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 80
         resources:

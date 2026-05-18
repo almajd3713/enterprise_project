@@ -35,6 +35,7 @@ COMMENTS_PER_DOC=4 \
 - Document categories (idempotent)
 - Staff users (`staff001...`) with rotating roles
 - Documents uploaded as different users
+- Document descriptions included on each upload (to feed translation/search)
 - Multiple comments per document by different users
 - Search/audit reads to produce realistic access traces
 
@@ -48,4 +49,3 @@ COMMENTS_PER_DOC=4 \
 The seeder intentionally does **not** create these reserved demo entities:
 - Departments: `Finance`, `IT`
 - Categories: `General`, `Administrative`, `Training`
-

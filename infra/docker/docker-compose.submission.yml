@@ -1,38 +1,67 @@
 services:
   auth-service:
-    ports: []
+    ports: !reset []
 
   documents:
-    ports: []
+    ports: !reset []
 
   comments:
-    ports: []
+    ports: !reset []
 
   audit-service:
-    ports: []
+    ports: !reset []
+
+  search-service:
+    ports: !reset []
+
+  translator-service:
+    ports: !reset []
 
   postgres:
-    ports: []
+    ports: !reset []
 
   auth-postgres:
-    ports: []
+    ports: !reset []
 
   audit-postgres:
-    ports: []
+    ports: !reset []
+
+  search-postgres:
+    ports: !reset []
 
   redis:
-    ports: []
+    ports: !reset []
 
   cassandra:
-    ports: []
+    ports: !reset []
 
   kafka:
-    ports: []
+    ports: !reset []
+
+  zookeeper:
+    ports: !reset []
+
+  kafka-ui:
+    ports: !reset []
 
   minio:
-    ports: []
+    ports: !reset []
 
-  # Keep gateway and UI/observability externally reachable for demo/submission.
+  libretranslate:
+    ports: !reset []
+
+  prometheus:
+    ports: !reset []
+
+  grafana:
+    ports: !reset []
+
+  loki:
+    ports: !reset []
+
+  jaeger:
+    ports: !reset []
+
   gateway:
     ports:
       - "3333:8080"

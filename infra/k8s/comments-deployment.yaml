@@ -12,19 +12,36 @@ spec:
       labels:
         app: comments-service
     spec:
+      initContainers:
+        - name: ensure-cassandra-keyspace
+          image: cassandra:4.1
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              until cqlsh comments-cassandra 9042 -e "describe keyspaces" >/dev/null 2>&1; do
+                echo "waiting for cassandra..."
+                sleep 5
+              done
+              cqlsh comments-cassandra 9042 -e "CREATE KEYSPACE IF NOT EXISTS dms WITH replication = {'class':'SimpleStrategy','replication_factor':1};"
       containers:
         - name: comments-service
-          image: ttl.sh/enterprise-reel-comments-20260406113259:2h
+          image: dms-comments:minikube
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8083
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: postgres
+            - name: CASSANDRA_HOST
+              value: comments-cassandra
             - name: DOCUMENTS_SERVICE_URL
               value: http://documents-service:8081
             - name: JWT_SECRET
-              value: change-this-for-production-and-use-a-strong-key-please-1234567890
+              value: omg-very-sectret_one-two-tres_reelus
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: kafka:9092
           resources:
             requests:
               cpu: 200m

@@ -4,6 +4,7 @@ import com.ensia.documents_service.model.Category;
 import com.ensia.documents_service.model.Document;
 import com.ensia.documents_service.repository.CategoryRepository;
 import com.ensia.documents_service.repository.DocumentRepository;
+import com.ensia.documents_service.service.S3Service;
 import jakarta.annotation.PostConstruct;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -17,10 +18,14 @@ public class SeedDataInitializer {
 
     private final CategoryRepository categoryRepository;
     private final DocumentRepository documentRepository;
+    private final S3Service s3Service;
 
-    public SeedDataInitializer(CategoryRepository categoryRepository, DocumentRepository documentRepository) {
+    public SeedDataInitializer(CategoryRepository categoryRepository,
+                               DocumentRepository documentRepository,
+                               @org.springframework.beans.factory.annotation.Autowired(required = false) S3Service s3Service) {
         this.categoryRepository = categoryRepository;
         this.documentRepository = documentRepository;
+        this.s3Service = s3Service;
     }
 
     @PostConstruct
@@ -60,98 +65,117 @@ public class SeedDataInitializer {
         }
 
         List<Document> docs = new ArrayList<>();
-        docs.add(createDocument(
+        docs.add(createDocumentWithPlaceholder(
                 "Q1 Revenue Snapshot",
+                "Quarterly summary of revenue performance across regions and product lines.",
                 "user",
                 1L,
                 categoryIdsByName.get("Finance"),
-                "q1-revenue-snapshot.pdf",
-                "application/pdf",
-                358_221L,
-                "Resume trimestriel des revenus avec tendances principales."
+                "q1-revenue-snapshot.txt",
+                "Resume trimestriel des revenus avec tendances principales.",
+                "Synthese trimestrielle des performances de revenus par region et ligne de produit.",
+                "Q1 seeded placeholder document content."
         ));
-        docs.add(createDocument(
+        docs.add(createDocumentWithPlaceholder(
                 "Employment Contract Template v4",
+                "Standardized employment contract template for full-time onboarding.",
                 "user",
                 2L,
                 categoryIdsByName.get("Human Resources"),
-                "employment-contract-template-v4.docx",
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                147_032L,
-                null
+                "employment-contract-template-v4.txt",
+                null,
+                null,
+                "Employment template seeded placeholder."
         ));
-        docs.add(createDocument(
+        docs.add(createDocumentWithPlaceholder(
                 "Customer SLA 2026",
+                "Service-level agreement for enterprise customer support obligations in 2026.",
                 "admin",
                 3L,
                 categoryIdsByName.get("Legal"),
-                "customer-sla-2026.pdf",
-                "application/pdf",
-                213_880L,
-                "Accord de niveau de service avec délais d'escalade et remediation."
+                "customer-sla-2026.txt",
+                "Accord de niveau de service avec délais d'escalade et remediation.",
+                "Accord de niveau de service pour les obligations de support client en 2026.",
+                "SLA seeded placeholder document content."
         ));
-        docs.add(createDocument(
+        docs.add(createDocumentWithoutAttachment(
                 "Platform Migration Runbook",
+                "Step-by-step operational guide for platform migration and rollback.",
                 "admin",
                 4L,
                 categoryIdsByName.get("Engineering"),
-                "platform-migration-runbook.md",
-                "text/markdown",
-                82_964L,
-                ""
+                "",
+                "Guide operationnel etapes par etapes pour migration et retour arriere."
         ));
-        docs.add(createDocument(
+        docs.add(createDocumentWithoutAttachment(
                 "Warehouse Incident RCA 14-03",
+                "Root cause analysis for the March 14 warehouse incident and corrective actions.",
                 "admin",
                 5L,
                 categoryIdsByName.get("Operations"),
-                "warehouse-incident-rca-14-03.pdf",
-                "application/pdf",
-                501_290L,
+                null,
                 null
         ));
-        docs.add(createDocument(
+        docs.add(createDocumentWithoutAttachment(
                 "Enterprise Pipeline Forecast",
+                "Sales pipeline outlook by region, segment, and probability-weighted close date.",
                 "user",
                 1L,
                 categoryIdsByName.get("Sales"),
-                "enterprise-pipeline-forecast.xlsx",
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                194_600L,
-                "Forecast model grouped by region, segment, and close probability."
+                "Forecast model grouped by region, segment, and close probability.",
+                "Perspective commerciale par region, segment et probabilite de conclusion."
         ));
-        docs.add(createDocument(
+        docs.add(createDocumentWithoutAttachment(
                 "Roadmap Themes H2 2026",
+                "Product roadmap themes, milestones, and dependencies for H2 planning.",
                 "admin",
                 4L,
                 categoryIdsByName.get("Product"),
-                "roadmap-themes-h2-2026.pptx",
-                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                2_046_700L,
-                "Product themes, milestones, and cross-team dependencies for H2."
+                "Product themes, milestones, and cross-team dependencies for H2.",
+                "Themes produit, jalons et dependances inter-equipes pour la planification H2."
         ));
 
         documentRepository.saveAll(docs);
     }
 
-    private Document createDocument(String title,
-                                    String ownerId,
-                                    Long departmentId,
-                                    Long categoryId,
-                                    String fileName,
-                                    String contentType,
-                                    Long fileSize,
-                                    String translatedText) {
+    private Document createDocumentWithoutAttachment(String title,
+                                                     String description,
+                                                     String ownerId,
+                                                     Long departmentId,
+                                                     Long categoryId,
+                                                     String translatedText,
+                                                     String translatedDescription) {
         Document document = new Document();
         document.setTitle(title);
+        document.setDescription(description);
         document.setOwnerId(ownerId);
         document.setDepartmentId(departmentId);
         document.setCategoryId(categoryId);
-        document.setFileName(fileName);
-        document.setFileKey("seed/" + fileName);
-        document.setContentType(contentType);
-        document.setFileSize(fileSize);
         document.setTranslatedText(translatedText);
+        document.setTranslatedDescription(translatedDescription);
+        return document;
+    }
+
+    private Document createDocumentWithPlaceholder(String title,
+                                                   String description,
+                                                   String ownerId,
+                                                   Long departmentId,
+                                                   Long categoryId,
+                                                   String fileName,
+                                                   String translatedText,
+                                                   String translatedDescription,
+                                                   String content) {
+        Document document = createDocumentWithoutAttachment(
+                title, description, ownerId, departmentId, categoryId, translatedText, translatedDescription
+        );
+
+        if (s3Service != null) {
+            String key = s3Service.uploadTextPlaceholder(fileName, content);
+            document.setFileName(fileName);
+            document.setFileKey(key);
+            document.setContentType("text/plain");
+            document.setFileSize((long) content.length());
+        }
         return document;
     }
 }

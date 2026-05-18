@@ -19,6 +19,9 @@ public class Document implements Serializable {
     private Long id;
 
     private String title;
+
+    @Column(columnDefinition = "TEXT")
+    private String description;
     
     private String fileName;
     
@@ -36,4 +39,7 @@ public class Document implements Serializable {
     
     @Column(columnDefinition = "TEXT")
     private String translatedText;
+
+    @Column(columnDefinition = "TEXT")
+    private String translatedDescription;
 }

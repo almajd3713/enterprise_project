@@ -3,9 +3,11 @@ package com.ensia.auth_service.user;
 import com.ensia.auth_service.auth.AuthProperties;
 import jakarta.annotation.PostConstruct;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -34,6 +36,7 @@ public class UserAccountService {
     @PostConstruct
     @Transactional
     public void seedUsersIfMissing() {
+        Map<String, Long> seededDepartmentIds = ensureSeedDepartments();
         for (AuthProperties.UserEntry userEntry : authProperties.getUsers()) {
             if (userEntry.getUsername() == null || userEntry.getPassword() == null || userEntry.getEmail() == null) {
                 continue;
@@ -51,10 +54,27 @@ public class UserAccountService {
             account.setPasswordHash(passwordEncoder.encode(userEntry.getPassword()));
             account.setSalt(UUID.randomUUID().toString().replace("-", ""));
             account.setRoles(parseRoles(userEntry.getRoles(), null));
-            account.setDepartmentIds(defaultDepartmentsForSeedUser(username));
+            account.setDepartmentIds(defaultDepartmentsForSeedUser(username, seededDepartmentIds));
             account.setActive(true);
             repository.save(account);
         }
+    }
+
+    private Map<String, Long> ensureSeedDepartments() {
+        String[] names = {"Finance", "Human Resources", "Legal", "Engineering", "Operations"};
+        Map<String, Long> idsByName = new LinkedHashMap<>();
+
+        for (String name : names) {
+            Department department = departmentRepository.findByNameIgnoreCase(name)
+                    .orElseGet(() -> {
+                        Department created = new Department();
+                        created.setName(name);
+                        return departmentRepository.save(created);
+                    });
+            idsByName.put(name, department.getId());
+        }
+
+        return idsByName;
     }
 
     @Transactional(readOnly = true)
@@ -297,12 +317,16 @@ public class UserAccountService {
         return repository.findById(userId).orElseThrow(() -> new IllegalArgumentException("User not found"));
     }
 
-    private Set<Long> defaultDepartmentsForSeedUser(String username) {
+    private Set<Long> defaultDepartmentsForSeedUser(String username, Map<String, Long> idsByName) {
         if ("admin".equalsIgnoreCase(username)) {
-            return new LinkedHashSet<>(List.of(1L, 2L, 3L, 4L, 5L));
+            return new LinkedHashSet<>(idsByName.values());
         }
         if ("user".equalsIgnoreCase(username)) {
-            return new LinkedHashSet<>(List.of(1L, 2L));
+            Long financeId = idsByName.get("Finance");
+            Long hrId = idsByName.get("Human Resources");
+            return java.util.stream.Stream.of(financeId, hrId)
+                    .filter(Objects::nonNull)
+                    .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
         }
         return new LinkedHashSet<>();
     }

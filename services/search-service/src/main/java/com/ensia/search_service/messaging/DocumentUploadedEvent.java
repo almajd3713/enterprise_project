@@ -6,6 +6,7 @@ public record DocumentUploadedEvent(
         String occurredAt,
         Long documentId,
         String title,
+        String description,
         String ownerId,
         Long departmentId,
         Long categoryId,
@@ -15,6 +16,8 @@ public record DocumentUploadedEvent(
         Long fileSize,
         String sourceLanguage,
         String targetLanguage,
-        String textToTranslate
+        String textToTranslate,
+        String titleToTranslate,
+        String descriptionToTranslate
 ) {
 }

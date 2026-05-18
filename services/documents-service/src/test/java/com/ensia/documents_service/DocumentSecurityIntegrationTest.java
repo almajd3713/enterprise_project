@@ -1,6 +1,5 @@
 package com.ensia.documents_service;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
 import com.ensia.documents_service.model.Document;
@@ -23,13 +22,13 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK, properties = {
         "app.auth.jwt-secret=change-this-for-production-and-use-a-strong-key-please-1234567890",
         "app.kafka.enabled=false",
-        "app.kafka.listener.auto-startup=false"
+        "app.kafka.listener.auto-startup=false",
+        "spring.cache.type=simple"
 })
 @AutoConfigureMockMvc
 @Import({com.ensia.documents_service.security.SecurityConfig.class, JwtAuthenticationFilter.class, JwtService.class})
@@ -64,26 +63,41 @@ class DocumentSecurityIntegrationTest {
     }
 
     @Test
-    void documentOwnerComesFromJwtIdentity() {
-        String token = createToken("alice", "USER");
-        assertThatCode(() -> mockMvc.perform(post("/documents/add")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .header("Authorization", "Bearer " + token)
-                        .content("{\"title\":\"Quarterly Report\"}"))
-                .andExpect(status().is2xxSuccessful()))
-                .doesNotThrowAnyException();
+    void documentGetIsForbiddenForUsersOutsideDepartment() {
+        Document document = new Document();
+        document.setTitle("IT-only");
+        document.setDepartmentId(42L);
+        document.setOwnerId("alice");
+        Document saved = documentRepository.save(document);
 
-        Document saved = documentRepository.findAll().stream().findFirst().orElseThrow();
-        assertThat(saved.getOwnerId()).isEqualTo("alice");
+        String token = createToken("bob", "USER", java.util.List.of(10L));
+        assertThatCode(() -> mockMvc.perform(get("/documents/get/" + saved.getId())
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden()))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void documentGetReturnsNotFoundForMissingDocument() {
+        String token = createToken("bob", "USER", java.util.List.of(10L));
+        assertThatCode(() -> mockMvc.perform(get("/documents/get/999999")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound()))
+                .doesNotThrowAnyException();
     }
 
     private String createToken(String username, String role) {
+        return createToken(username, role, java.util.List.of());
+    }
+
+    private String createToken(String username, String role, java.util.List<Long> departmentIds) {
         SecretKey key = Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8));
         Instant now = Instant.now();
         return Jwts.builder()
                 .subject(username)
                 .claim("role", role)
                 .claim("roles", java.util.List.of(role))
+                .claim("departmentIds", departmentIds)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(3600)))
                 .signWith(key)

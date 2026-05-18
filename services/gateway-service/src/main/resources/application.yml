@@ -89,3 +89,9 @@ app:
         password: analyst123
         roles:
           - ANALYST
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus

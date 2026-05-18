@@ -43,7 +43,9 @@ public class KafkaConfig {
 
     @Bean
     public KafkaTemplate<String, Object> kafkaTemplate() {
-        return new KafkaTemplate<>(producerFactory());
+        KafkaTemplate<String, Object> template = new KafkaTemplate<>(producerFactory());
+        template.setObservationEnabled(true);
+        return template;
     }
 
     // ── Consumer ─────────────────────────────────────────────────────────────
@@ -70,6 +72,7 @@ public class KafkaConfig {
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(translationConsumerFactory());
         factory.setAutoStartup(kafkaListenerAutoStartup);
+        factory.getContainerProperties().setObservationEnabled(true);
         // Manual acknowledgment — offset is committed only after the DB write succeeds
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
         return factory;

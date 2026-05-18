@@ -17,7 +17,13 @@ public class SearchDocument {
     private String title;
 
     @Column(columnDefinition = "TEXT")
+    private String description;
+
+    @Column(columnDefinition = "TEXT")
     private String translatedText;
+
+    @Column(columnDefinition = "TEXT")
+    private String translatedDescription;
 
     @Column(length = 120)
     private String ownerId;
@@ -40,8 +46,12 @@ public class SearchDocument {
     public void setDocumentId(Long documentId) { this.documentId = documentId; }
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
     public String getTranslatedText() { return translatedText; }
     public void setTranslatedText(String translatedText) { this.translatedText = translatedText; }
+    public String getTranslatedDescription() { return translatedDescription; }
+    public void setTranslatedDescription(String translatedDescription) { this.translatedDescription = translatedDescription; }
     public String getOwnerId() { return ownerId; }
     public void setOwnerId(String ownerId) { this.ownerId = ownerId; }
     public Long getDepartmentId() { return departmentId; }

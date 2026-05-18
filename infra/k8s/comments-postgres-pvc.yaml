@@ -3,6 +3,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: comments-postgres-pvc
 spec:
+  volumeName: comments-postgres-pv
   storageClassName: manual
   accessModes:
     - ReadWriteOnce

@@ -25,3 +25,18 @@ scrape_configs:
     metrics_path: /actuator/prometheus
     static_configs:
       - targets: ['comments:8083']
+
+  - job_name: audit-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['audit-service:8086']
+
+  - job_name: search-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['search-service:8087']
+
+  - job_name: translator-service
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['translator-service:9108']

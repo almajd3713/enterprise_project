@@ -20,3 +20,11 @@ export function RequirePermission({
   }
   return <>{children}</>
 }
+
+export function RequireAdmin({ children }: { children: React.ReactNode }) {
+  const { me } = useAuth()
+  if (!me?.roles.includes('ADMIN')) {
+    return <section className="card"><h2>Access denied</h2><p>This area is restricted to administrators.</p></section>
+  }
+  return <>{children}</>
+}

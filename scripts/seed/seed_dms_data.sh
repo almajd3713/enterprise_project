@@ -47,6 +47,16 @@ api_post_json() {
   fi
 }
 
+api_patch_json() {
+  local path="$1"
+  local token="$2"
+  local payload="$3"
+  curl -sS -X PATCH "${BASE_URL}${path}" \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer ${token}" \
+    -d "$payload"
+}
+
 api_get() {
   local path="$1"
   local token="$2"
@@ -72,6 +82,8 @@ login() {
 }
 
 declare -A TOKENS
+declare -A OPERATOR_DEPARTMENT
+declare -A DEPARTMENT_NAME
 
 token_for() {
   local username="$1"
@@ -118,10 +130,14 @@ create_user() {
 upload_document() {
   local token="$1"
   local title="$2"
-  local filepath="$3"
+  local description="$3"
+  local department_id="$4"
+  local filepath="$5"
   curl -sS -X POST "${BASE_URL}/api/documents/upload" \
     -H "Authorization: Bearer ${token}" \
     -F "title=${title}" \
+    -F "description=${description}" \
+    -F "departmentId=${department_id}" \
     -F "file=@${filepath};type=text/plain"
 }
 
@@ -144,12 +160,25 @@ wait_for_gateway() {
   return 1
 }
 
+wait_for_documents() {
+  log "Waiting for documents service health..."
+  for _ in $(seq 1 40); do
+    if curl -fsS "${BASE_URL}/api/documents/list" -H "Authorization: Bearer ${1}" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 2
+  done
+  echo "Documents service is not ready behind gateway at ${BASE_URL}" >&2
+  return 1
+}
+
 seed() {
   wait_for_gateway
 
   log "Authenticating admin"
   local admin_token
   admin_token="$(token_for "$ADMIN_USERNAME" "$ADMIN_PASSWORD")"
+  wait_for_documents "$admin_token"
 
   log "Creating departments"
   for name in "Operations" "HR" "Legal" "Sales" "Engineering" "Support" "Compliance"; do
@@ -165,10 +194,14 @@ seed() {
   local roles=("USER" "ANALYST" "OPERATOR")
   local -a users=()
   local -a passwords=()
+  local -a operator_users=()
+  local -a operator_passwords=()
 
   if try_login "admin" "admin123"; then users+=("admin"); passwords+=("admin123"); fi
   if try_login "user" "user123"; then users+=("user"); passwords+=("user123"); fi
-  if try_login "operator" "operator123"; then users+=("operator"); passwords+=("operator123"); fi
+  if try_login "operator" "operator123"; then
+    users+=("operator"); passwords+=("operator123")
+  fi
   if try_login "analyst" "analyst123"; then users+=("analyst"); passwords+=("analyst123"); fi
 
   for i in $(seq 1 "$USERS_COUNT"); do
@@ -180,13 +213,55 @@ seed() {
     if try_login "$uname" "$pass"; then
       users+=("$uname")
       passwords+=("$pass")
+      if [[ "$role" == "OPERATOR" ]]; then
+        operator_users+=("$uname")
+        operator_passwords+=("$pass")
+      fi
     fi
   done
 
-  if [[ ${#users[@]} -eq 0 ]]; then
-    echo "No usable users were available for document generation." >&2
+  if [[ ${#operator_users[@]} -eq 0 ]]; then
+    echo "No usable OPERATOR users were available for document generation." >&2
     return 1
   fi
+
+  local departments_json
+  departments_json="$(api_get "/api/departments" "$admin_token")"
+  local -a department_ids=()
+  local -a department_names=()
+  while IFS= read -r dep_id; do
+    [[ -n "$dep_id" ]] && department_ids+=("$dep_id")
+  done < <(printf '%s' "$departments_json" | grep -o '"id":[0-9]\+' | sed 's/"id"://')
+  while IFS= read -r dep_name; do
+    [[ -n "$dep_name" ]] && department_names+=("$dep_name")
+  done < <(printf '%s' "$departments_json" | grep -o '"name":"[^"]\+"' | sed 's/"name":"//; s/"$//')
+
+  if [[ ${#department_ids[@]} -eq 0 ]]; then
+    echo "Could not resolve department ids for operator uploads." >&2
+    return 1
+  fi
+
+  local map_count=${#department_ids[@]}
+  if [[ ${#department_names[@]} -lt $map_count ]]; then
+    map_count=${#department_names[@]}
+  fi
+  for i in $(seq 0 $((map_count - 1))); do
+    DEPARTMENT_NAME["${department_ids[$i]}"]="${department_names[$i]}"
+  done
+
+  for i in "${!operator_users[@]}"; do
+    local opname="${operator_users[$i]}"
+    local assigned_department_id="${department_ids[$(( i % ${#department_ids[@]} ))]}"
+    local user_json
+    user_json="$(api_get "/api/users?query=${opname}" "$admin_token")"
+    local user_id
+    user_id="$(printf '%s' "$user_json" | grep -o '"id":[0-9]\+' | head -n1 | sed 's/"id"://')"
+    if [[ -n "$user_id" ]]; then
+      api_patch_json "/api/users/${user_id}/departments" "$admin_token" "{\"departmentIds\":[${assigned_department_id}]}" >/dev/null || true
+      OPERATOR_DEPARTMENT["$opname"]="$assigned_department_id"
+      unset TOKENS["$opname"]
+    fi
+  done
 
   log "Generating documents (${DOCS_COUNT}) and comments (${COMMENTS_PER_DOC}/doc)"
   local -a domains=("Budget" "Procurement" "Compliance" "Security" "Research" "Projects" "Operations" "Governance")
@@ -194,15 +269,21 @@ seed() {
   local created=0
 
   for i in $(seq 1 "$DOCS_COUNT"); do
-    local idx=$(( (i-1) % ${#users[@]} ))
-    local actor="${users[$idx]}"
-    local actor_pass="${passwords[$idx]}"
+    local idx=$(( (i-1) % ${#operator_users[@]} ))
+    local actor="${operator_users[$idx]}"
+    local actor_pass="${operator_passwords[$idx]}"
     local actor_token
     actor_token="$(token_for "$actor" "$actor_pass")"
+    local actor_department_id="${OPERATOR_DEPARTMENT[$actor]:-}"
+    if [[ -z "$actor_department_id" ]]; then
+      actor_department_id="${department_ids[$(( i % ${#department_ids[@]} ))]}"
+    fi
+    local actor_department_name="${DEPARTMENT_NAME[$actor_department_id]:-Department-${actor_department_id}}"
 
     local d="${domains[$(( (i-1) % ${#domains[@]} ))]}"
     local v="${verbs[$(( (i-1) % ${#verbs[@]} ))]}"
-    local title="${d} ${v} ${i}"
+    local title="${actor_department_name} ${d} ${v} ${i}"
+    local description="${actor_department_name} ${d} ${v} narrative for ${actor}. Seed batch ${SEED_TAG}, document ${i}."
 
     local file="${TMP_DIR}/doc_${i}.txt"
     cat > "$file" <<DOC
@@ -213,10 +294,16 @@ Generated At: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
 This is synthetic enterprise content for demo realism.
 DOC
 
-    local upload_res
-    upload_res="$(upload_document "$actor_token" "$title" "$file")"
-    local doc_id
-    doc_id="$(extract_doc_id "$upload_res")"
+    local upload_res=""
+    local doc_id=""
+    for attempt in 1 2 3; do
+      upload_res="$(upload_document "$actor_token" "$title" "$description" "$actor_department_id" "$file")"
+      doc_id="$(extract_doc_id "$upload_res")"
+      if [[ -n "$doc_id" ]]; then
+        break
+      fi
+      sleep 1
+    done
 
     if [[ -z "$doc_id" ]]; then
       echo "UPLOAD_FAILED for ${title}: ${upload_res}" >&2

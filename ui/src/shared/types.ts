@@ -21,6 +21,7 @@ export type MeResponse = {
 export type Document = {
   id: number
   title: string
+  description: string | null
   fileName: string | null
   fileKey: string | null
   contentType: string | null
@@ -29,12 +30,15 @@ export type Document = {
   departmentId: number | null
   categoryId: number | null
   translatedText: string | null
+  translatedDescription: string | null
 }
 
 export type SearchResult = {
   documentId: number
   title: string
+  description: string | null
   translatedText: string | null
+  translatedDescription: string | null
   ownerId: string
   departmentId: number | null
   categoryId: number | null
@@ -69,13 +73,33 @@ export type Comment = {
 }
 
 export type AuditEvent = {
-  id: string
+  id: string | number
+  eventId?: string
   actor: string
   action: string
-  entityType: string
-  entityId: string
+  entityType?: string
+  entityId?: string
+  resourceType?: string
+  resourceId?: string
   departmentId: number | null
   metadataJson: string
-  integrityHash: string
-  createdAt: string
+  integrityHash?: string
+  eventHash?: string
+  createdAt?: string
+  occurredAt?: string
+}
+
+export type ConsoleLogEntry = {
+  service: string
+  timestampNs: string
+  timestampIso: string
+  stream: string
+  container: string
+  line: string
+}
+
+export type AdminConsoleResponse = {
+  availableServices: string[]
+  selectedServices: string[]
+  entries: ConsoleLogEntry[]
 }

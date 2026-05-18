@@ -17,7 +17,9 @@ public interface SearchDocumentRepository extends JpaRepository<SearchDocument, 
           and (
             :query is null or :query = ''
             or lower(coalesce(d.title, '')) like lower(concat('%', :query, '%'))
+            or lower(coalesce(d.description, '')) like lower(concat('%', :query, '%'))
             or lower(coalesce(d.translatedText, '')) like lower(concat('%', :query, '%'))
+            or lower(coalesce(d.translatedDescription, '')) like lower(concat('%', :query, '%'))
             or lower(coalesce(d.fileName, '')) like lower(concat('%', :query, '%'))
           )
         order by d.updatedAt desc

@@ -2,7 +2,6 @@ package com.ensia.comments_service.service;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
@@ -23,12 +22,12 @@ public class DocumentAccessService {
         }
 
         try {
-            ResponseEntity<Void> response = restClient.get()
+            Object responseBody = restClient.get()
                     .uri(documentsServiceUrl + "/documents/get/" + documentId)
                     .header(HttpHeaders.AUTHORIZATION, authorizationHeader)
                     .retrieve()
-                    .toBodilessEntity();
-            return response.getStatusCode().is2xxSuccessful();
+                    .body(Object.class);
+            return responseBody != null;
         } catch (org.springframework.web.client.HttpStatusCodeException ex) {
             return false;
         } catch (RuntimeException ex) {

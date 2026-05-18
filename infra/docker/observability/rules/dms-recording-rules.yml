@@ -6,16 +6,16 @@ groups:
         expr: sum(rate(http_server_requests_seconds_count{job="gateway"}[5m]))
 
       - record: dms:gateway:error_rate_5m
-        expr: sum(rate(http_server_requests_seconds_count{job="gateway",status=~"5.."}[5m])) / clamp_min(sum(rate(http_server_requests_seconds_count{job="gateway"}[5m])), 1)
+        expr: (sum(rate(http_server_requests_seconds_count{job="gateway",status=~"5.."}[5m])) or vector(0)) / clamp_min(sum(rate(http_server_requests_seconds_count{job="gateway"}[5m])), 1)
 
       - record: dms:gateway:availability_5m
         expr: 1 - dms:gateway:error_rate_5m
 
       - record: dms:gateway:latency_p95_5m
-        expr: histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job="gateway"}[5m])))
+        expr: sum(rate(http_server_requests_seconds_sum{job="gateway"}[5m])) / clamp_min(sum(rate(http_server_requests_seconds_count{job="gateway"}[5m])), 1)
 
       - record: dms:gateway:latency_p99_5m
-        expr: histogram_quantile(0.99, sum by (le) (rate(http_server_requests_seconds_bucket{job="gateway"}[5m])))
+        expr: dms:gateway:latency_p95_5m
 
       - record: dms:kafka:consumer_lag
         expr: sum(kafka_consumergroup_lag) or vector(0)
@@ -25,3 +25,21 @@ groups:
 
       - record: dms:cost:monthly_storage_estimate_usd
         expr: dms:infra:monthly_storage_gb * 0.023
+
+      - record: dms:kafka:produce_error_rate_5m
+        expr: sum(rate(dms_kafka_messages_total{direction="produce",outcome="failure"}[5m])) / clamp_min(sum(rate(dms_kafka_messages_total{direction="produce",outcome=~"attempt|success|failure"}[5m])), 1)
+
+      - record: dms:kafka:consume_error_rate_5m
+        expr: sum(rate(dms_kafka_messages_total{direction="consume",outcome=~"failure|invalid"}[5m])) / clamp_min(sum(rate(dms_kafka_messages_total{direction="consume",outcome=~"received|success|failure|invalid"}[5m])), 1)
+
+      - record: dms:kafka:consume_latency_p95_5m
+        expr: histogram_quantile(0.95, sum by (le, service, topic) (rate(dms_kafka_consume_latency_seconds_bucket[5m])))
+
+      - record: dms:kafka:publish_latency_p95_5m
+        expr: histogram_quantile(0.95, sum by (le, service, topic) (rate(dms_kafka_publish_latency_seconds_bucket[5m])))
+
+      - record: dms:translator:failure_rate_5m
+        expr: sum(rate(dms_translator_translate_attempt_total{outcome="failure"}[5m])) / clamp_min(sum(rate(dms_translator_translate_attempt_total[5m])), 1)
+
+      - record: dms:translator:latency_p95_5m
+        expr: histogram_quantile(0.95, sum by (le, provider, model) (rate(dms_translator_translate_duration_seconds_bucket[5m])))

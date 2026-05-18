@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: gateway-service
-          image: ttl.sh/enterprise-reel-gateway-20260406113259:2h
+          image: dms-gateway:minikube
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080

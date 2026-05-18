@@ -16,6 +16,7 @@ import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignReques
 import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.net.URI;
 import java.time.Duration;
 import java.util.UUID;
@@ -59,6 +60,20 @@ public class S3Service {
 
         s3Client.putObject(request, RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
         
+        return key;
+    }
+
+    public String uploadTextPlaceholder(String fileName, String content) {
+        String key = "seed/" + UUID.randomUUID() + "_" + fileName;
+        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+
+        PutObjectRequest request = PutObjectRequest.builder()
+                .bucket(bucket)
+                .key(key)
+                .contentType("text/plain")
+                .build();
+
+        s3Client.putObject(request, RequestBody.fromBytes(bytes));
         return key;
     }
 

@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: comments-cassandra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: comments-cassandra
+  template:
+    metadata:
+      labels:
+        app: comments-cassandra
+    spec:
+      containers:
+        - name: cassandra
+          image: cassandra:4.1
+          ports:
+            - containerPort: 9042
+          env:
+            - name: MAX_HEAP_SIZE
+              value: 512M
+            - name: HEAP_NEWSIZE
+              value: 100M
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1024Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: comments-cassandra
+spec:
+  type: ClusterIP
+  selector:
+    app: comments-cassandra
+  ports:
+    - port: 9042
+      targetPort: 9042

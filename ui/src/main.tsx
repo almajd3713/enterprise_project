@@ -7,6 +7,13 @@ import { ToastProvider } from './shared/ui/ToastProvider'
 import { App } from './app/App'
 import './index.css'
 
+const savedTheme = localStorage.getItem('ui-theme')
+if (savedTheme === 'dark') {
+  document.documentElement.classList.add('dark')
+} else {
+  document.documentElement.classList.remove('dark')
+}
+
 const queryClient = new QueryClient()
 
 createRoot(document.getElementById('root')!).render(
