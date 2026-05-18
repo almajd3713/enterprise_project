@@ -1,0 +1,87 @@
+Enterprise Computing: Final Project Submission : Saturday 16 May 2026
+redhouane.lazib@ensia.edu.dz Switch account
+ 
+The name, email, and photo associated with your Google account will be recorded when you upload files and submit this form
+* Indicates required question
+Email *
+Record redhouane.lazib@ensia.edu.dz as the email to be included with my response
+Group *
+G1
+G2
+G3
+G4
+G5
+G6
+G7
+G8
+Screencast with voice explaining the full primary user cases implemented. 
+1. Admin creates two department : Finance + IT : via the front-end linked to the backend
+2. Admin creates three user  : u1@ensia.dz, u2@ensia.dz, u3@ensia.dz
+3 Admin assigns users to department : u1 -> IT, u2 -> Finance, u3 - both
+4. Admin creates the following categories : General, Administrative, Training.
+5. User Logs in via the front-end linked ..
+6. User u1 creates a document with a PDF file to upload to their department : IT
+7. User u1 makes a comment on the document recently added.
+8. User u2 logs in to their account, they see only documents if any created only in Finance.
+9. User u2 creates a document inside their department with a PDF file
+10. User u3 logs to see both files and can download them.
+11. User 1 logs back and see the translated title of their document.
+
+*
+Upload up to 5 supported files. Max 100 MB per file.
+Users can upload a document to their department *
+Yes
+No
+Users can see and download documents only from their department *
+Yes
+No
+Users can see/write comments only to documents they are allowed to see *
+Yes
+No
+Documents are fetched/stored from S3 using Pre-signed URLs. *
+Yes
+No
+JWT-based authentication is implemented with a separate Auth microservice. *
+Yes
+No
+The project uses at least two different database technologies, each chosen for the workload it serves. (e.g. PostgreSQL for documents, Cassandra for comments or audit logs.) *
+Yes
+No
+Redis is used as a caching layer for a hot read path, with explicit cache invalidation on writes. *
+Yes
+No
+AI-Service is integrated using Message-Driven Architecture to either summarize/translate..
+Results are shown to the user on the UI *
+Yes
+No
+External AI-APIs are implemented to translate/summarise... *
+Yes
+No
+Full Backend is deployed with Kafka within K8 *
+Yes
+No
+Application metrics are scraped by Prometheus and visualised in a Grafana dashboard with at least three panels. *
+Yes
+No
+E2E testing is implemented for at least two scenarios using Playwright or Cypress
+*
+Yes
+No
+All external traffic enters through the Gateway; no microservice is exposed directly to the public network.
+*
+Yes
+No
+
+One-page architecture diagram showing services, databases, message queues, and the distinction between synchronous and asynchronous flows
+*
+Upload 1 supported file. Max 10 MB.
+
+Extra Enterprise Feature 1
+
+Extra Enterprise Feature 2
+
+Extra Enterprise Feature 3
+
+Extra Enterprise Feature 4
+
+
