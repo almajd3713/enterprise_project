@@ -34,7 +34,14 @@ seed-reset:
 
 stress:
 	@if ! command -v k6 >/dev/null 2>&1; then echo "k6 is required. Install k6 first."; exit 1; fi
-	@TARGET=$${TARGET:-http://localhost:3333/api/documents}; \
+	@BASE=$${BASE_URL:-}; \
+	if [ -z "$$BASE" ]; then \
+	  for b in http://localhost:3333 http://localhost:8080 http://localhost:30090; do \
+	    if curl -fsS "$$b/actuator/health" >/dev/null 2>&1; then BASE="$$b"; break; fi; \
+	  done; \
+	fi; \
+	BASE=$${BASE:-http://localhost:3333}; \
+	TARGET=$${TARGET:-$$BASE/api/documents}; \
 	VUS=$${VUS:-100}; \
 	DURATION=$${DURATION:-5m}; \
 	echo "Running stress test on $$TARGET (vus=$$VUS duration=$$DURATION)"; \
@@ -42,12 +49,26 @@ stress:
 
 stress-smoke:
 	@if ! command -v k6 >/dev/null 2>&1; then echo "k6 is required. Install k6 first."; exit 1; fi
-	@TARGET=$${TARGET:-http://localhost:3333/actuator/health}; \
+	@BASE=$${BASE_URL:-}; \
+	if [ -z "$$BASE" ]; then \
+	  for b in http://localhost:3333 http://localhost:8080 http://localhost:30090; do \
+	    if curl -fsS "$$b/actuator/health" >/dev/null 2>&1; then BASE="$$b"; break; fi; \
+	  done; \
+	fi; \
+	BASE=$${BASE:-http://localhost:3333}; \
+	TARGET=$${TARGET:-$$BASE/actuator/health}; \
 	echo "Running smoke load on $$TARGET"; \
 	k6 run --env TARGET=$$TARGET scripts/load.js
 
 stress-comments:
 	@if ! command -v k6 >/dev/null 2>&1; then echo "k6 is required. Install k6 first."; exit 1; fi
-	@TARGET=$${TARGET:-http://localhost:3333/api/comments}; \
+	@BASE=$${BASE_URL:-}; \
+	if [ -z "$$BASE" ]; then \
+	  for b in http://localhost:3333 http://localhost:8080 http://localhost:30090; do \
+	    if curl -fsS "$$b/actuator/health" >/dev/null 2>&1; then BASE="$$b"; break; fi; \
+	  done; \
+	fi; \
+	BASE=$${BASE:-http://localhost:3333}; \
+	TARGET=$${TARGET:-$$BASE/api/comments}; \
 	echo "Running comments write load on $$TARGET"; \
 	k6 run --env TARGET=$$TARGET scripts/k6_comments_write.js

@@ -40,3 +40,8 @@ release.properties
 .gradle/
 build/
 out/
+
+# Playwright
+.playwright/
+test-results/
+trace/

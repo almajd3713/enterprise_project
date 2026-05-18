@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE_URL="${BASE_URL:-http://localhost:3333}"
+BASE_URL="${BASE_URL:-}"
+BASE_URL_CANDIDATES="${BASE_URL_CANDIDATES:-http://localhost:3333,http://localhost:8080,http://localhost:30090}"
 ADMIN_USERNAME="${ADMIN_USERNAME:-admin}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin123}"
 USERS_COUNT="${USERS_COUNT:-16}"
@@ -149,7 +150,7 @@ add_comment() {
 }
 
 wait_for_gateway() {
-  log "Waiting for gateway health..."
+  log "Waiting for gateway health on ${BASE_URL}..."
   for _ in $(seq 1 40); do
     if curl -fsS "${BASE_URL}/actuator/health" >/dev/null 2>&1; then
       return 0
@@ -158,6 +159,26 @@ wait_for_gateway() {
   done
   echo "Gateway is not reachable at ${BASE_URL}" >&2
   return 1
+}
+
+resolve_base_url() {
+  if [[ -n "${BASE_URL}" ]]; then
+    return 0
+  fi
+
+  IFS=',' read -r -a candidates <<< "${BASE_URL_CANDIDATES}"
+  for candidate in "${candidates[@]}"; do
+    candidate="$(printf '%s' "$candidate" | xargs)"
+    [[ -z "$candidate" ]] && continue
+    if curl -fsS "${candidate}/actuator/health" >/dev/null 2>&1; then
+      BASE_URL="$candidate"
+      log "Auto-detected BASE_URL=${BASE_URL}"
+      return 0
+    fi
+  done
+
+  BASE_URL="http://localhost:3333"
+  log "Could not auto-detect gateway. Falling back to BASE_URL=${BASE_URL}"
 }
 
 wait_for_documents() {
@@ -173,6 +194,7 @@ wait_for_documents() {
 }
 
 seed() {
+  resolve_base_url
   wait_for_gateway
 
   log "Authenticating admin"
@@ -332,6 +354,17 @@ DOC
   api_get "/api/search/documents?q=Review" "$admin_token" >/dev/null || true
   api_get "/api/search/documents?q=Compliance" "$admin_token" >/dev/null || true
   api_get "/api/audit/events" "$admin_token" >/dev/null || true
+
+  local sample_id=""
+  sample_id="$(printf '%s' "$(api_get "/api/documents/list" "$admin_token")" | grep -o '"id":[0-9]\+' | head -n1 | sed 's/"id"://')"
+  if [[ -n "$sample_id" ]]; then
+    local presigned
+    presigned="$(api_get "/api/documents/${sample_id}/presigned-url" "$admin_token" || true)"
+    if printf '%s' "$presigned" | grep -q 'minio:9000'; then
+      log "WARNING: Presigned URL host is still minio:9000 (internal)."
+      log "Set documents-service MINIO_PUBLIC_ENDPOINT to your Windows-reachable URL (e.g. http://localhost:19000)."
+    fi
+  fi
 
   log "Done. Created ${created}/${DOCS_COUNT} documents."
   log "Artifacts in ${TMP_DIR}"

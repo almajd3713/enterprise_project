@@ -6,7 +6,7 @@ type User = { id: number; username: string; departmentIds: number[] }
 type Category = { id: number; name: string }
 type Document = { id: number; title: string }
 
-const API_BASE = process.env.API_BASE ?? 'http://localhost:3333/api'
+const API_BASE = process.env.API_BASE ?? 'http://localhost:8080/api'
 
 async function login(username: string, password: string): Promise<string> {
   const res = await fetch(`${API_BASE}/auth/login`, {
@@ -175,5 +175,6 @@ test('Upload and translation result are shown in the UI', async ({ page }) => {
   await page.getByRole('link', { name: 'Documents' }).click()
   await page.getByPlaceholder('Filter by title or owner').fill(createdTitle)
   await page.getByRole('link', { name: 'Open' }).first().click()
-  await expect(page.locator('p:has-text("Translated text:")')).not.toContainText('Not available')
+  await expect(page).toHaveURL(/\/documents\/\d+$/)
+  await expect(page.locator('p:has-text("Translated title:")')).not.toContainText('Not available')
 })

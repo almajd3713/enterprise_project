@@ -22,12 +22,28 @@ COMMENTS_PER_DOC=4 \
 
 ## Defaults
 
-- `BASE_URL=http://localhost:3333`
+- `BASE_URL` auto-detected from:
+  - `http://localhost:3333` (docker-compose)
+  - `http://localhost:8080` (port-forwarded gateway)
+  - `http://localhost:30090` (k8s NodePort)
+  - fallback: `http://localhost:3333`
 - `ADMIN_USERNAME=admin`
 - `ADMIN_PASSWORD=admin123`
 - `USERS_COUNT=16`
 - `DOCS_COUNT=120`
 - `COMMENTS_PER_DOC=3`
+
+Override detection when needed:
+
+```bash
+BASE_URL=http://localhost:8080 ./scripts/seed/seed_dms_data.sh
+```
+
+Or customize probes:
+
+```bash
+BASE_URL_CANDIDATES=http://localhost:8080,http://localhost:30090 ./scripts/seed/seed_dms_data.sh
+```
 
 ## What it creates
 
@@ -43,6 +59,8 @@ COMMENTS_PER_DOC=4 \
 
 - Script is safe to re-run. Duplicate resources are ignored where possible.
 - Generated temp files are stored under `/tmp/dms-seed-<tag>`.
+- For k8s + WSL + Windows downloads, presigned URLs must use a Windows-reachable MinIO host.
+  Example: set `MINIO_PUBLIC_ENDPOINT=http://localhost:19000` in `documents-service`.
 
 ## Demo-reserved entities
 
