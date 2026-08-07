@@ -45,3 +45,5 @@ out/
 .playwright/
 test-results/
 trace/
+
+backups/

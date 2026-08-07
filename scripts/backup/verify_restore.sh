@@ -12,7 +12,5 @@ docker compose -f "$COMPOSE_FILE" exec -T cassandra cqlsh -e "SELECT count(*) FR
 
 echo "[verify] running API smoke checks"
 curl -fsS "$GATEWAY_URL/actuator/health" >/dev/null
-curl -fsS "$GATEWAY_URL/api/documents/list" >/dev/null || true
-curl -fsS "$GATEWAY_URL/api/audit/events" >/dev/null || true
 
 echo "[verify] restore verification complete"
